@@ -1,16 +1,12 @@
-/*
- * Copyright (c) 2020 Otalia Studios. Author: Mattia Iavarone.
- */
-
-import com.otaliastudios.tools.publisher.common.*
+import io.deepmedia.tools.publisher.common.*
 
 plugins {
     `kotlin-dsl`
-    id("com.otaliastudios.tools.publisher")
+    id("io.deepmedia.tools.publisher")
 }
 
 dependencies {
-    api("com.android.tools.build:gradle:4.0.1") // android gradle plugin
+    api("com.android.tools.build:gradle:4.1.1") // android gradle plugin
     api(gradleApi()) // gradle
     api(gradleKotlinDsl()) // not sure if needed
     api(localGroovy()) // groovy
@@ -19,11 +15,11 @@ dependencies {
 publisher {
     project.name = "Grease"
     project.artifact = "grease"
-    project.description = "Fat and shaded AARs for Android."
-    project.group = "com.otaliastudios.tools"
-    project.url = "https://github.com/natario1/Grease"
-    project.vcsUrl = "https://github.com/natario1/Grease.git"
-    release.version = "0.1.2"
+    project.description = "Fat AARs for Android."
+    project.group = "io.deepmedia.tools"
+    project.url = "https://github.com/deepmedia/Grease"
+    project.vcsUrl = "https://github.com/deepmedia/Grease.git"
+    release.version = "0.2.0"
     // release.setSources(Release.SOURCES_AUTO)
     // release.setDocs(Release.DOCS_AUTO)
     directory {

@@ -1,4 +1,4 @@
-package com.otaliastudios.tools.grease
+package io.deepmedia.tools.grease
 
 import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.kotlin.dsl.DependencyHandlerScope

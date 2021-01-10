@@ -1,10 +1,11 @@
 plugins {
     id("com.android.library")
-    id("com.otaliastudios.tools.grease")
+    id("io.deepmedia.tools.grease")
 }
 
 android {
     setCompileSdkVersion(29)
+    ndkVersion = "20.1.5948944"
     defaultConfig {
         setMinSdkVersion(21)
         setTargetSdkVersion(29)
@@ -18,7 +19,7 @@ android {
         // Configure native library libgrease to test that it's correctly packed
         // in the output together with those of our dependencies.
         ndk {
-            abiFilters("x86", "x86_64", "armeabi-v7a", "arm64-v8a")
+            abiFilters.addAll(setOf("x86", "x86_64", "armeabi-v7a", "arm64-v8a"))
         }
 
         // Configure proguard files.

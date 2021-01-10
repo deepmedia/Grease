@@ -1,4 +1,4 @@
-package com.otaliastudios.tools.grease
+package io.deepmedia.tools.grease
 
 import com.android.build.api.attributes.BuildTypeAttr
 import com.android.build.gradle.api.LibraryVariant

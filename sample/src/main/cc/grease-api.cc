@@ -1,7 +1,3 @@
-//
-// Created by Mattia Iavarone on 01/08/2020.
-//
-
 #include <android/log.h>
 
 void grease_test() {

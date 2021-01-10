@@ -1,4 +1,4 @@
-package com.otaliastudios.tools.grease
+package io.deepmedia.tools.grease
 
 import org.gradle.api.Project
 import org.gradle.api.logging.LogLevel

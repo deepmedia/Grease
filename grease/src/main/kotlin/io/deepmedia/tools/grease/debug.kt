@@ -1,4 +1,4 @@
-package com.otaliastudios.tools.grease
+package io.deepmedia.tools.grease
 
 import com.android.build.gradle.internal.res.GenerateLibraryRFileTask
 import com.android.build.gradle.internal.res.ParseLibraryResourcesTask
@@ -50,8 +50,8 @@ internal fun debugResourcesTasks(target: Project, logger: Logger) {
             is GenerateLibraryRFileTask -> doFirst {
                 log.i { "localResourcesFile (i): ${task.localResourcesFile.orNull}" }
                 log.i { "dependencies (i): ${task.dependencies.files.joinToString()}" }
-                log.i { "sourceOutputDirectory (o): ${task.sourceOutputDirectory.orNull}" }
                 log.i { "rClassOutputJar (o): ${task.rClassOutputJar.orNull}" }
+                log.i { "sourceOutputDir (o): ${task.sourceOutputDir}" }
                 log.i { "textSymbolOutputFileProperty (o): ${task.textSymbolOutputFileProperty.orNull}" }
                 log.i { "symbolsWithPackageNameOutputFile (o): ${task.symbolsWithPackageNameOutputFile.orNull}" }
                 log.i { "symbolsWithPackageNameOutputFile (o): ${task.symbolsWithPackageNameOutputFile.orNull}" }
@@ -62,11 +62,11 @@ internal fun debugResourcesTasks(target: Project, logger: Logger) {
             }
             is GenerateBuildConfig -> doFirst {
                 log.i { "mergedManifests (i): ${task.mergedManifests.orNull}" } // empty
-                log.i { "itemValues (i): ${task.itemValues.joinToString()}" } // empty
+                log.i { "items (i): ${task.items.orNull}" } // empty
                 log.i { "sourceOutputDir (o): ${task.sourceOutputDir}" } // generated/source/<VARIANT>. contains the BuildConfig file
             }
             is GenerateResValues -> doFirst {
-                log.i { "itemValues (i): ${task.getItemValues().joinToString()}" } // empty
+                log.i { "items (i): ${task.items.orNull}" } // empty
                 log.i { "resOutputDir (o): ${task.resOutputDir}" } // generated/res/resValues/<VARIANT>. nothing there for now
             }
             is MergeResources -> doFirst {

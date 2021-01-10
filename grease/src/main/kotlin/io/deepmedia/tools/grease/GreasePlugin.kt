@@ -1,11 +1,10 @@
 @file:Suppress("UnstableApiUsage")
 
-package com.otaliastudios.tools.grease
+package io.deepmedia.tools.grease
 
 import com.android.build.gradle.LibraryExtension
 import com.android.build.gradle.api.LibraryVariant
 import com.android.build.gradle.api.LibraryVariantOutput
-import com.android.build.gradle.internal.ApplicationTaskManager
 import com.android.build.gradle.internal.LibraryTaskManager
 import com.android.build.gradle.internal.LoggerWrapper
 import com.android.build.gradle.internal.TaskManager
@@ -18,8 +17,6 @@ import com.android.build.gradle.internal.tasks.*
 import com.android.build.gradle.internal.tasks.factory.TaskCreationAction
 import com.android.build.gradle.internal.tasks.manifest.mergeManifestsForApplication
 import com.android.build.gradle.tasks.*
-import com.android.builder.compiling.BuildConfigGenerator
-import com.android.builder.compiling.ResValueGenerator
 import com.android.manifmerger.ManifestMerger2
 import com.android.manifmerger.ManifestProvider
 import org.gradle.api.Plugin
@@ -140,16 +137,13 @@ open class GreasePlugin : Plugin<Project> {
                         /* The merged flavor represents all flavors plus the default config. */
                         versionCode = variant.mergedFlavor.versionCode ?: 1, // Should we inspect the buildType as well?
                         versionName = variant.mergedFlavor.versionName ?: "", // Should we inspect the buildType as well?
-                        minSdkVersion = variant.mergedFlavor.minSdkVersion.apiString,
-                        targetSdkVersion = variant.mergedFlavor.targetSdkVersion.apiString,
+                        minSdkVersion = variant.mergedFlavor.minSdkVersion?.apiString,
+                        targetSdkVersion = variant.mergedFlavor.targetSdkVersion?.apiString,
                         maxSdkVersion = variant.mergedFlavor.maxSdkVersion,
                         /* The output destination */
-                        outManifestLocation = primaryManifest.get().absolutePath,
+                        outMergedManifestLocation = primaryManifest.get().absolutePath,
                         /* Extra outputs that can probably be null. */
                         outAaptSafeManifestLocation = null,
-                        outMetadataFeatureManifestLocation = null,
-                        outBundleManifestLocation = null,
-                        outInstantAppManifestLocation = null,
                         /* Either LIBRARY or APPLICATION. When using LIBRARY we can't add lib dependencies */
                         mergeType = if (true) ManifestMerger2.MergeType.APPLICATION else ManifestMerger2.MergeType.LIBRARY,
                         /* Manifest placeholders. Doing this the way the library manifest does. */

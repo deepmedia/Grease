@@ -1,4 +1,4 @@
-package com.otaliastudios.tools.grease
+package io.deepmedia.tools.grease
 
 internal fun String.greasify() = nameOf("grease", this)
 

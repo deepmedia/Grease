@@ -1,4 +1,4 @@
-package com.otaliastudios.tools.grease.sample;
+package io.deepmedia.tools.grease.sample;
 
 import android.content.Context;
 import android.util.Log;

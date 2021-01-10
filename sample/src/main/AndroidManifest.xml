@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.otaliastudios.tools.grease.sample">
+    package="io.deepmedia.tools.grease.sample">
 
     <application android:name=".SampleApplication">
         <activity android:name=".SampleActivity"/>

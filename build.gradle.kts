@@ -11,7 +11,7 @@ buildscript {
 
     dependencies {
         classpath("io.deepmedia.tools:publisher:0.4.0")
-        classpath("com.otaliastudios.tools:grease:0.1.0") {
+        classpath("io.deepmedia.tools:grease:0.2.0") {
             isChanging = true
         }
     }
