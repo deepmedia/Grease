@@ -1,6 +1,7 @@
 buildscript {
     repositories {
         maven("build/maven")
+        maven("https://dl.bintray.com/deepmedia/tools/")
         google()
         jcenter()
     }
