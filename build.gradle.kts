@@ -10,7 +10,7 @@ buildscript {
     }
 
     dependencies {
-        classpath("com.otaliastudios.tools:publisher:0.3.3")
+        classpath("io.deepmedia.tools:publisher:0.4.0")
         classpath("com.otaliastudios.tools:grease:0.1.0") {
             isChanging = true
         }
@@ -25,6 +25,6 @@ allprojects {
     }
 }
 
-tasks.create("clean", Delete::class) {
+tasks.register("clean", Delete::class) {
     delete(buildDir)
 }

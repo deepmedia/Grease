@@ -1,5 +1,6 @@
 package com.otaliastudios.tools.grease
 
+import com.android.build.api.attributes.BuildTypeAttr
 import com.android.build.gradle.api.LibraryVariant
 import com.android.build.gradle.internal.dsl.BuildType
 import com.android.build.gradle.internal.dsl.ProductFlavor
@@ -10,6 +11,7 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.attributes.Usage
 import org.gradle.kotlin.dsl.get
+import org.gradle.kotlin.dsl.named
 
 internal fun Configuration.artifactsOf(type: AndroidArtifacts.ArtifactType)
         = incoming.artifactView {
@@ -58,7 +60,8 @@ private fun Project.createGrease(name: String): Configuration {
         attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, Usage.JAVA_RUNTIME))
     }
     configurations.configureEach {
-        if (name == nameOf(name, "compileClasspath")) {
+        val other = this
+        if (other.name == nameOf(name, "compileClasspath")) {
             extendsFrom(configuration)
         }
     }
@@ -88,9 +91,13 @@ internal fun Project.createProductFlavorConfigurations(
 internal fun Project.createBuildTypeConfigurations(
     buildTypes: NamedDomainObjectContainer<BuildType>, log: Logger) {
     buildTypes.configureEach {
-        log.i { "Creating build type configuration ${this.name.greasify()}..." }
-        val config = createGrease(this.name)
+        val buildType = this
+        log.i { "Creating build type configuration ${buildType.name.greasify()}..." }
+        val config = createGrease(buildType.name)
         config.extendsFrom(grease)
+        config.attributes {
+            attribute(BuildTypeAttr.ATTRIBUTE, objects.named(BuildTypeAttr::class, buildType.name))
+        }
     }
 }
 

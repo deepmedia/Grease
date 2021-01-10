@@ -23,7 +23,7 @@ publisher {
     project.group = "com.otaliastudios.tools"
     project.url = "https://github.com/natario1/Grease"
     project.vcsUrl = "https://github.com/natario1/Grease.git"
-    release.version = "0.1.1"
+    release.version = "0.1.2"
     // release.setSources(Release.SOURCES_AUTO)
     // release.setDocs(Release.DOCS_AUTO)
     directory {
