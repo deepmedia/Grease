@@ -20,8 +20,15 @@ publisher {
     project.url = "https://github.com/deepmedia/Grease"
     project.vcsUrl = "https://github.com/deepmedia/Grease.git"
     release.version = "0.2.0"
-    // release.setSources(Release.SOURCES_AUTO)
-    // release.setDocs(Release.DOCS_AUTO)
+    release.sources = Release.SOURCES_AUTO
+    release.docs = Release.DOCS_AUTO
+
+    bintray {
+        auth.user = "BINTRAY_USER"
+        auth.key = "BINTRAY_KEY"
+        auth.repo = "BINTRAY_REPO"
+    }
+
     directory {
         directory = "../build/maven"
     }
