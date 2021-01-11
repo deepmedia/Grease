@@ -44,11 +44,17 @@ android {
     }
 }
 
+configurations.configureEach {
+    if (name == "greaseGreenCircleDebug") isTransitive = false
+}
+
 dependencies {
     // Includes resource and some manifest changes
-    grease("androidx.core:core:1.3.1")
+    greaseDebug("androidx.core:core:1.3.2")
     // Includes native libraries
-    grease("org.tensorflow:tensorflow-lite:2.3.0")
+    greaseRelease("org.tensorflow:tensorflow-lite:2.3.0")
     // Manifest changes, layout resources
-    grease("com.otaliastudios:cameraview:2.6.3")
+    afterEvaluate {
+        add("greaseGreenCircleDebug","com.otaliastudios:cameraview:2.6.3")
+    }
 }

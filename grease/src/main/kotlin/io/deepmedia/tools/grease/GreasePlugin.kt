@@ -380,7 +380,7 @@ open class GreasePlugin : Plugin<Project> {
             doFirst {
                 log.i { "Executing for variant ${variant.name} and ${inputs.files.files.size} roots..." }
                 inputs.files.files.forEach { inputJar ->
-                    log.i { "Found JAR root: $inputJar" }
+                    log.i { "Processing inputJar=$inputJar outputDir=${compileTask.get().destinationDirectory.get()}..." }
                     val inputFiles = target.zipTree(inputJar).matching { include("**/*.class") }
                     target.copy {
                         from(inputFiles)

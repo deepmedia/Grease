@@ -16,9 +16,13 @@ internal fun debugConfigurationHierarchy(target: Project, logger: Logger) {
             val log = logger.child(this.name)
             val attrKeys = attributes.keySet()
             val attrs = attrKeys.map { it to attributes.getAttribute(it) }
-            log.i { "Configuration added - canBeResolved:${isCanBeResolved} canBeConsumed:${isCanBeConsumed}" }
-            log.i { "Configuration added - extendsFrom:[${extendsFrom.joinToString { it.name }}]" }
-            log.i { "Configuration added - attributes:[${attrs.joinToString { "${it.first}:${it.second}" }}]" }
+            log.i {
+                "Configuration added - " +
+                        "canBeResolved=${isCanBeResolved} " +
+                        "canBeConsumed=${isCanBeConsumed} " +
+                        "extendsFrom=[${extendsFrom.joinToString { it.name }}] " +
+                        "attributes=[${attrs.joinToString { "${it.first}:${it.second}" }}]"
+            }
         }
     }
 }
