@@ -50,7 +50,7 @@ configurations.configureEach {
 
 dependencies {
     // Includes resource and some manifest changes
-    greaseDebug("androidx.core:core:1.3.2")
+    grease("androidx.core:core:1.3.2")
     // Includes native libraries
     greaseRelease("org.tensorflow:tensorflow-lite:2.3.0")
     // Manifest changes, layout resources
