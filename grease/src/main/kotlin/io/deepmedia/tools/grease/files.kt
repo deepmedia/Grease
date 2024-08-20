@@ -1,6 +1,7 @@
 package io.deepmedia.tools.grease
 
 import java.io.File
+import java.util.jar.JarFile
 
 
 internal fun File.folder(name: String) = File(this, name).also { it.mkdirs() }
@@ -29,3 +30,20 @@ internal fun File.relocate(from: File, to: File): File {
     assert(absolutePath.startsWith(from.absolutePath)) { "File not contained in $from!" }
     return File(absolutePath.replaceFirst(from.absolutePath, to.absolutePath))
 }
+
+val JarFile.packageNames: Set<String>
+    get() = entries().asSequence().mapNotNull { entry ->
+        if (entry.name.endsWith(".class") && entry.name != "module-info.class") {
+            entry.name.substring(0 until entry.name.lastIndexOf('/')).replace('/', '.')
+        } else null
+    }.toSet()
+
+val File.packageNames: Set<String>
+    get() = listFilesRecursive("class").mapNotNull { file ->
+        if (file.name != "module-info.class") {
+            val cleanedPath = file.path.removePrefix(this.path).removePrefix("/")
+            cleanedPath
+                .substring(0 until cleanedPath.lastIndexOf('/'))
+                .replace('/', '.')
+        } else null
+    }.toSet()

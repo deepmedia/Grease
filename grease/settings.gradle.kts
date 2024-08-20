@@ -1,5 +1,4 @@
 pluginManagement {
-    includeBuild("./grease")
     repositories {
         google()
         gradlePluginPortal()
@@ -14,8 +13,11 @@ dependencyResolutionManagement {
         gradlePluginPortal()
         mavenCentral()
     }
+    versionCatalogs {
+        create("libs") {
+            from(files("../gradle/libs.versions.toml"))
+        }
+    }
 }
 
 rootProject.name = "grease"
-
-include(":sample")

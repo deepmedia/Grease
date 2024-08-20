@@ -1,0 +1,23 @@
+[versions]
+agp = "8.1.4"
+asm-commons = "9.6"
+android-tools = "31.1.4"
+kotlin = "2.0.0"
+shadow = "8.3.0"
+publisher = "0.14.0"
+
+[libraries]
+asm-commons = { module = "org.ow2.asm:asm-commons", version.ref = "asm-commons" }
+gradle-android-common = { module = "com.android.tools:common", version.ref = "android-tools" }
+gradle-android-sdk-common = { module = "com.android.tools:sdk-common", version.ref = "android-tools" }
+gradle-android-layoutlib = { module = "com.android.tools.layoutlib:layoutlib-api", version.ref = "android-tools" }
+gradle-android-build = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+gradle-shadow = { module = "com.gradleup.shadow:shadow-gradle-plugin", version.ref = "shadow" }
+
+[bundles]
+gradle-android = ["gradle-android-sdk-common", "gradle-android-build", "gradle-android-common", "gradle-android-layoutlib"]
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+publisher = { id = "io.deepmedia.tools.deployer", version.ref = "publisher" }
+android-library = { id = "com.android.library", version.ref = "agp" }

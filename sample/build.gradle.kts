@@ -1,16 +1,19 @@
 plugins {
-    id("com.android.library")
+    alias(libs.plugins.android.library)
     id("io.deepmedia.tools.grease")
 }
 
+grease {
+    relocationPrefix = "temp"
+}
+
 android {
-    setCompileSdkVersion(29)
+    namespace = "io.deepmedia.tools.grease.sample"
     ndkVersion = "20.1.5948944"
+    compileSdk = 29
+
     defaultConfig {
-        setMinSdkVersion(21)
-        setTargetSdkVersion(29)
-        versionCode = 1
-        versionName = "1.0"
+        minSdk = 21
 
         // Configure manifest placeholders to test that they are correctly replaced
         // in our manifest processing step.
@@ -23,19 +26,27 @@ android {
         }
 
         // Configure proguard files.
-        proguardFiles(getDefaultProguardFile(com.android.build.gradle.ProguardFiles.ProguardFile.OPTIMIZE.fileName), "proguard-rules.pro")
+        proguardFiles(
+            getDefaultProguardFile(com.android.build.gradle.ProguardFiles.ProguardFile.OPTIMIZE.fileName),
+            "proguard-rules.pro"
+        )
         consumerProguardFile("consumer-rules.pro")
 
         // Configure some flavors for testing configurations.
-        flavorDimensions("color", "shape")
-        productFlavors.create("blue") { dimension = "color" }
-        productFlavors.create("green") { dimension = "color" }
-        productFlavors.create("circle") { dimension = "shape" }
-        productFlavors.create("triangle") { dimension = "shape" }
+        flavorDimensions.addAll(listOf("color", "shape"))
+        productFlavors {
+            create("blue") { dimension = "color" }
+            create("green") { dimension = "color" }
+            create("circle") { dimension = "shape" }
+            create("triangle") { dimension = "shape" }
+        }
     }
 
-    buildTypes["debug"].isMinifyEnabled = false
-    buildTypes["release"].isMinifyEnabled = true
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+        }
+    }
 
     externalNativeBuild {
         cmake {
@@ -44,17 +55,18 @@ android {
     }
 }
 
-configurations.configureEach {
-    if (name == "greaseGreenCircleDebug") isTransitive = false
-}
-
 dependencies {
+    greaseApi("androidx.core:core:1.0.0")
+
+    // include deps to pom when publishing
+    api("com.google.android.material:material:1.0.0")
     // Includes resource and some manifest changes
-    grease("androidx.core:core:1.3.2")
-    // Includes native libraries
-    greaseRelease("org.tensorflow:tensorflow-lite:2.3.0")
-    // Manifest changes, layout resources
+    implementation("androidx.lifecycle:lifecycle-runtime:2.8.4")
+
     afterEvaluate {
-        add("greaseGreenCircleDebug","com.otaliastudios:cameraview:2.6.3")
+        // Includes native libraries
+        "greaseApi"("org.tensorflow:tensorflow-lite:2.3.0")
+        // Manifest changes, layout resources
+        "grease"("com.otaliastudios:cameraview:2.7.2")
     }
 }

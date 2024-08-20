@@ -16,7 +16,7 @@ internal fun debugConfigurationHierarchy(target: Project, logger: Logger) {
             val log = logger.child(this.name)
             val attrKeys = attributes.keySet()
             val attrs = attrKeys.map { it to attributes.getAttribute(it) }
-            log.i {
+            log.d {
                 "Configuration added - " +
                         "canBeResolved=${isCanBeResolved} " +
                         "canBeConsumed=${isCanBeConsumed} " +
@@ -27,21 +27,34 @@ internal fun debugConfigurationHierarchy(target: Project, logger: Logger) {
     }
 }
 
+internal fun debugGreasyConfigurationHierarchy(target: Project, logger: Logger) {
+    target.afterEvaluate {
+        configurations.configureEach {
+            if (name.startsWith("grease")) {
+                logger.d { name }
+                extendsFrom.forEach {sub ->
+                    logger.d { "| ${sub.name}" }
+                }
+            }
+        }
+    }
+}
+
 internal fun debugSourcesTasks(target: Project, logger: Logger) {
     target.tasks.configureEach {
         val log = logger.child(this.name).child(this::class.java.simpleName)
         when (val task = this) {
             is LibraryAarJarsTask -> doFirst {
-                log.i { "mainScopeClassFiles (i): ${task.mainScopeClassFiles.files.joinToString()}" }
-                log.i { "mainClassLocation (o): ${task.mainClassLocation.orNull}" }
-                log.i { "localJarsLocation (o): ${task.localJarsLocation.orNull}" }
+                log.d { "mainScopeClassFiles (i): ${task.mainScopeClassFiles.files.joinToString()}" }
+                log.d { "mainClassLocation (o): ${task.mainClassLocation.orNull}" }
+                log.d { "localJarsLocation (o): ${task.localJarsLocation.orNull}" }
             }
             is JavaCompile -> doFirst {
-                log.i { "source (i): ${task.source.files.joinToString()}" }
-                log.i { "source (i): ${task.source.files.joinToString()}" }
-                log.i { "generatedSourceOutputDirectory (o): ${task.options.generatedSourceOutputDirectory.orNull}" }
-                log.i { "headerOutputDirectory (o): ${task.options.headerOutputDirectory.orNull}" }
-                log.i { "destinationDirectory (o): ${task.destinationDirectory.orNull}" }
+                log.d { "source (i): ${task.source.files.joinToString()}" }
+                log.d { "source (i): ${task.source.files.joinToString()}" }
+                log.d { "generatedSourceOutputDirectory (o): ${task.options.generatedSourceOutputDirectory.orNull}" }
+                log.d { "headerOutputDirectory (o): ${task.options.headerOutputDirectory.orNull}" }
+                log.d { "destinationDirectory (o): ${task.destinationDirectory.orNull}" }
             }
         }
     }
@@ -52,42 +65,42 @@ internal fun debugResourcesTasks(target: Project, logger: Logger) {
         val log = logger.child(this.name).child(this::class.java.simpleName)
         when (val task = this) {
             is GenerateLibraryRFileTask -> doFirst {
-                log.i { "localResourcesFile (i): ${task.localResourcesFile.orNull}" }
-                log.i { "dependencies (i): ${task.dependencies.files.joinToString()}" }
-                log.i { "rClassOutputJar (o): ${task.rClassOutputJar.orNull}" }
-                log.i { "sourceOutputDir (o): ${task.sourceOutputDir}" }
-                log.i { "textSymbolOutputFileProperty (o): ${task.textSymbolOutputFileProperty.orNull}" }
-                log.i { "symbolsWithPackageNameOutputFile (o): ${task.symbolsWithPackageNameOutputFile.orNull}" }
-                log.i { "symbolsWithPackageNameOutputFile (o): ${task.symbolsWithPackageNameOutputFile.orNull}" }
+                log.d { "localResourcesFile (i): ${task.localResourcesFile.orNull}" }
+                log.d { "dependencies (i): ${task.dependencies.files.joinToString()}" }
+                log.d { "rClassOutputJar (o): ${task.rClassOutputJar.orNull}" }
+                log.d { "sourceOutputDir (o): ${task.sourceOutputDir}" }
+                log.d { "textSymbolOutputFileProperty (o): ${task.textSymbolOutputFileProperty.orNull}" }
+                log.d { "symbolsWithPackageNameOutputFile (o): ${task.symbolsWithPackageNameOutputFile.orNull}" }
+                log.d { "symbolsWithPackageNameOutputFile (o): ${task.symbolsWithPackageNameOutputFile.orNull}" }
             }
             is ParseLibraryResourcesTask -> doFirst {
-                log.i { "inputResourcesDir (i): ${task.inputResourcesDir.orNull}" }
-                log.i { "librarySymbolsFile (o): ${task.librarySymbolsFile.orNull}" }
+                log.d { "inputResourcesDir (i): ${task.inputResourcesDir.orNull}" }
+                log.d { "librarySymbolsFile (o): ${task.librarySymbolsFile.orNull}" }
             }
             is GenerateBuildConfig -> doFirst {
-                log.i { "mergedManifests (i): ${task.mergedManifests.orNull}" } // empty
-                log.i { "items (i): ${task.items.orNull}" } // empty
-                log.i { "sourceOutputDir (o): ${task.sourceOutputDir}" } // generated/source/<VARIANT>. contains the BuildConfig file
+                log.d { "mergedManifests (i): ${task.mergedManifests.orNull}" } // empty
+                log.d { "items (i): ${task.items.orNull}" } // empty
+                log.d { "sourceOutputDir (o): ${task.sourceOutputDir}" } // generated/source/<VARIANT>. contains the BuildConfig file
             }
             is GenerateResValues -> doFirst {
-                log.i { "items (i): ${task.items.orNull}" } // empty
-                log.i { "resOutputDir (o): ${task.resOutputDir}" } // generated/res/resValues/<VARIANT>. nothing there for now
+                log.d { "items (i): ${task.items.orNull}" } // empty
+                log.d { "resOutputDir (o): ${task.resOutputDir}" } // generated/res/resValues/<VARIANT>. nothing there for now
             }
             is MergeResources -> doFirst {
                 // When package<VARIANT>Resources: intermediates/packaged_res/<VARIANT>.
                 // There we find a copy of the resources.
                 // When merge<VARIANT>Resources (soon after): intermediates/res/merged/<VARIANT>.
                 // This is clearly the input of the verify task below.
-                log.i { "outputDir (o): ${task.outputDir.orNull}" }
+                log.d { "outputDir (o): ${task.outputDir.orNull}" }
                 // When package<VARIANT>Resources: intermediates/public_res/<VARIANT>/public.txt
                 // When merge<VARIANT>Resources: empty.
-                log.i { "publicFile (o): ${task.publicFile.orNull}" }
+                log.d { "publicFile (o): ${task.publicFile.orNull}" }
             }
             is VerifyLibraryResourcesTask -> doFirst {
-                log.i { "manifestFiles (i): ${task.manifestFiles.orNull}" } // intermediates/aapt_friendly_merged_manifests/<VARIANT>/aapt
-                log.i { "inputDirectory (i): ${task.inputDirectory.orNull}" } // intermediates/res/merged/<VARIANT>/ . Contains a copy of the resources, "merged" probably in the sense that all values are in a single file called values.xml ?
-                log.i { "compiledDependenciesResources (i): ${task.compiledDependenciesResources.files.joinToString()}" } // empty
-                log.i { "compiledDirectory (o): ${task.compiledDirectory}" } // intermediates/res/compiled/<VARIANT>/ . Contains the input resources compiled to a misterious *.flat format, probably used in APKs.
+                log.d { "manifestFiles (i): ${task.manifestFiles.orNull}" } // intermediates/aapt_friendly_merged_manifests/<VARIANT>/aapt
+                log.d { "inputDirectory (i): ${task.inputDirectory.orNull}" } // intermediates/res/merged/<VARIANT>/ . Contains a copy of the resources, "merged" probably in the sense that all values are in a single file called values.xml ?
+                log.d { "compiledDependenciesResources (i): ${task.compiledDependenciesResources.files.joinToString()}" } // empty
+                log.d { "compiledDirectory (o): ${task.compiledDirectory}" } // intermediates/res/compiled/<VARIANT>/ . Contains the input resources compiled to a misterious *.flat format, probably used in APKs.
             }
         }
     }
