@@ -2,28 +2,42 @@
 
 package io.deepmedia.tools.grease
 
+import com.android.build.api.variant.AndroidComponentsExtension
+import com.android.build.api.variant.Variant
+import com.android.build.api.variant.impl.getApiString
 import com.android.build.gradle.LibraryExtension
-import com.android.build.gradle.api.LibraryVariant
-import com.android.build.gradle.api.LibraryVariantOutput
 import com.android.build.gradle.internal.LibraryTaskManager
 import com.android.build.gradle.internal.LoggerWrapper
 import com.android.build.gradle.internal.TaskManager
+import com.android.build.gradle.internal.component.ComponentCreationConfig
+import com.android.build.gradle.internal.manifest.parseManifest
 import com.android.build.gradle.internal.publishing.AndroidArtifacts
 import com.android.build.gradle.internal.res.GenerateLibraryRFileTask
 import com.android.build.gradle.internal.res.ParseLibraryResourcesTask
 import com.android.build.gradle.internal.scope.InternalArtifactType
 import com.android.build.gradle.internal.scope.MutableTaskContainer
-import com.android.build.gradle.internal.tasks.*
+import com.android.build.gradle.internal.tasks.LibraryJniLibsTask
+import com.android.build.gradle.internal.tasks.MergeFileTask
+import com.android.build.gradle.internal.tasks.Workers
 import com.android.build.gradle.internal.tasks.factory.TaskCreationAction
-import com.android.build.gradle.internal.tasks.manifest.mergeManifestsForApplication
-import com.android.build.gradle.tasks.*
+import com.android.build.gradle.internal.tasks.manifest.mergeManifests
+import com.android.build.gradle.tasks.BundleAar
+import com.android.build.gradle.tasks.MergeResources
+import com.android.build.gradle.tasks.ProcessLibraryManifest
+import com.android.builder.errors.DefaultIssueReporter
+import com.android.ide.common.resources.CopyToOutputDirectoryResourceCompilationService
 import com.android.manifmerger.ManifestMerger2
 import com.android.manifmerger.ManifestProvider
+import com.android.utils.StdLogger
+import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
-import org.gradle.api.tasks.TaskProvider
 import org.gradle.kotlin.dsl.get
+import org.gradle.kotlin.dsl.support.unzipTo
+import org.gradle.kotlin.dsl.support.zipTo
+import java.io.File
 
 /**
  * Adds grease configurations for bundling dependencies in AAR files.
@@ -36,7 +50,7 @@ import org.gradle.kotlin.dsl.get
  */
 open class GreasePlugin : Plugin<Project> {
 
-    private val Project.greaseDir get() = buildDir.folder("grease")
+    private val defaultIssueReporter = DefaultIssueReporter(StdLogger(StdLogger.Level.WARNING))
 
     @Suppress("NAME_SHADOWING")
     override fun apply(target: Project) {
@@ -45,25 +59,36 @@ open class GreasePlugin : Plugin<Project> {
         }
         val log = Logger(target, "grease")
         val android = target.extensions["android"] as LibraryExtension
-        debugConfigurationHierarchy(target, log)
+        val androidComponents = target.extensions.getByType(AndroidComponentsExtension::class.java)
+        val greaseExtension = target.extensions.create("grease", GreaseExtension::class.java)
+
+        debugGreasyConfigurationHierarchy(target, log)
 
         // Create the configurations.
-        target.createRootConfiguration(log)
-        target.createProductFlavorConfigurations(android.productFlavors, log)
-        target.createBuildTypeConfigurations(android.buildTypes, log)
-        target.createVariantConfigurations(android.libraryVariants, log)
+        fun createConfigurations(isTransitive: Boolean) {
+            target.createRootConfiguration(isTransitive, log)
+            target.createProductFlavorConfigurations(androidComponents, isTransitive, log)
+            target.createBuildTypeConfigurations(android.buildTypes, isTransitive, log)
+            target.createVariantConfigurations(androidComponents, isTransitive, log)
+        }
+        createConfigurations(false)
+        createConfigurations(true)
 
+        fun configure(variant: Variant, vararg configurations: Configuration) {
+            configureVariantManifest(target, variant, configurations, log)
+            configureVariantJniLibs(target, variant, configurations, log)
+            configureVariantResources(target, variant, configurations, log)
+            configureVariantSources(target, variant, configurations, greaseExtension, log)
+            configureVariantAssets(target, variant, configurations, log)
+            configureVariantProguardFiles(target, variant, configurations, log)
+        }
         // Configure all variants.
-        android.libraryVariants.configureEach {
+        androidComponents.onVariants { variant ->
             val log = log.child("configureVariant")
-            log.i { "Configuring variant ${this.name}..." }
-            val configuration = target.greaseOf(this)
-            configureVariantManifest(target, this, configuration, log)
-            configureVariantJniLibs(target, this, configuration, log)
-            configureVariantResources(target, this, configuration, log)
-            configureVariantSources(target, this, configuration, log)
-            configureVariantAssets(target, this, configuration, log)
-            configureVariantProguardFiles(target, this, configuration, log)
+            log.d { "Configuring variant ${variant.name}..." }
+            target.afterEvaluate {
+                configure(variant, target.greaseOf(variant), target.greaseOf(variant, true))
+            }
         }
     }
 
@@ -89,79 +114,84 @@ open class GreasePlugin : Plugin<Project> {
      */
     private fun configureVariantManifest(
         target: Project,
-        variant: LibraryVariant,
-        configuration: Configuration,
+        variant: Variant,
+        configurations: Array<out Configuration>,
         logger: Logger
     ) {
         val log = logger.child("configureVariantManifest")
-        variant.outputs.configureEach {
-            val variantOutput = this
-            variantOutput as LibraryVariantOutput
-            log.i { "Configuring variant output ${variantOutput.name}..." }
+        log.d { "Configuring variant output ${variant.name}..." }
 
-            // cast ManifestProcessorTask to ProcessLibraryManifest
-            @Suppress("UNCHECKED_CAST")
-            val processManifestTask = processManifestProvider as TaskProvider<ProcessLibraryManifest>
+        val componentConfig = variant as ComponentCreationConfig
+
+        target.locateTask(componentConfig.computeTaskName("process", "Manifest"))?.configure {
+            val processManifestTask = this as ProcessLibraryManifest
+
+            val extraManifests = configurations.artifactsOf(AndroidArtifacts.ArtifactType.MANIFEST)
+            dependsOn(extraManifests)
 
             // After the file is copied we can go on with the actual manifest merging.
             // This task will overwrite the original AndroidManifest.xml.
-            val reprocessManifestTask = target.tasks.register(processManifestTask.name.greasify()) {
-                dependsOn(processManifestTask)
+            doLast {
+
+                val reportFile = target.greaseBuildDir.get().file("manifest_report.txt")
+                target.delete(reportFile)
 
                 // To retrieve the secondary files, we must query the configuration artifacts.
-                val primaryManifest = processManifestTask.get().manifestOutputFile.asFile // overwrite
-                val secondaryManifests = configuration.artifactsOf(AndroidArtifacts.ArtifactType.MANIFEST)
-                inputs.file(primaryManifest)
-                inputs.files(secondaryManifests)
-                outputs.file(primaryManifest)
+                val primaryManifest = processManifestTask.manifestOutputFile.asFile // overwrite
 
-                doLast {
-                    log.i { "Merging manifests... primary=${primaryManifest.get()}, secondary=${secondaryManifests.files.joinToString()}" }
-                    mergeManifestsForApplication(
-                        mainManifest = primaryManifest.get(),
-                        /* Overlays are other manifests from the current 'source set' of this lib. */
-                        manifestOverlays = if (false) secondaryManifests.files.toList() else listOf(),
-                        /* Dependencies are other manifests from other libraries, which should be our
+                @Suppress("DEPRECATION")
+                val mergedFlavor = componentConfig.oldVariantApiLegacySupport?.mergedFlavor
+
+                log.d { "Merging manifests... primary=${primaryManifest.get()}, secondary=${extraManifests.files.joinToString()}" }
+
+                mergeManifests(
+                    mainManifest = primaryManifest.get(),
+                    /* Overlays are other manifests from the current 'source set' of this lib. */
+                    manifestOverlays = if (false) extraManifests.files.toList() else listOf(),
+                    /* Dependencies are other manifests from other libraries, which should be our
                          * case but it's not clear if we can use them with the LIBRARY merge type. */
-                        dependencies = if (true) secondaryManifests.files.map { object : ManifestProvider {
+                    dependencies = if (true) extraManifests.files.map {
+                        object : ManifestProvider {
                             override fun getManifest() = it
                             override fun getName() = null
-                        } } else listOf(),
-                        /* Not sure what this is but it can be empty. */
-                        navigationJsons = listOf(),
-                        /* Probably something about feature modules? Ignore */
-                        featureName = null,
-                        /* Need to apply the libraryVariant package name */
-                        packageOverride = variant.applicationId,
-                        /* Version data */
-                        /* The merged flavor represents all flavors plus the default config. */
-                        versionCode = variant.mergedFlavor.versionCode ?: 1, // Should we inspect the buildType as well?
-                        versionName = variant.mergedFlavor.versionName ?: "", // Should we inspect the buildType as well?
-                        minSdkVersion = variant.mergedFlavor.minSdkVersion?.apiString,
-                        targetSdkVersion = variant.mergedFlavor.targetSdkVersion?.apiString,
-                        maxSdkVersion = variant.mergedFlavor.maxSdkVersion,
-                        /* The output destination */
-                        outMergedManifestLocation = primaryManifest.get().absolutePath,
-                        /* Extra outputs that can probably be null. */
-                        outAaptSafeManifestLocation = null,
-                        /* Either LIBRARY or APPLICATION. When using LIBRARY we can't add lib dependencies */
-                        mergeType = if (true) ManifestMerger2.MergeType.APPLICATION else ManifestMerger2.MergeType.LIBRARY,
-                        /* Manifest placeholders. Doing this the way the library manifest does. */
-                        placeHolders = variant.mergedFlavor.manifestPlaceholders.also {
-                            it.putAll(variant.buildType.manifestPlaceholders)
-                        },
-                        /* Optional features to be enabled. */
-                        optionalFeatures = setOf(ManifestMerger2.Invoker.Feature.NO_PLACEHOLDER_REPLACEMENT),
-                        /* Not sure, but it's empty in the lib processor */
-                        dependencyFeatureNames = setOf(),
-                        /* Output file with diagnostic info. I think. */
-                        reportFile = target.greaseDir.file("manifest_report.txt"),
-                        /* Logging */
-                        logger = LoggerWrapper(target.logger)
-                    )
-                }
+                        }
+                    } else listOf(),
+                    namespace = variant.namespace.get(),
+                    /* Not sure what this is but it can be empty. */
+                    navigationJsons = listOf(),
+                    /* Probably something about feature modules? Ignore */
+                    featureName = null,
+                    /* Need to apply the libraryVariant package name */
+                    packageOverride = componentConfig.applicationId.get(),
+                    /* Version data */
+                    /* The merged flavor represents all flavors plus the default config. */
+                    versionCode = mergedFlavor?.versionCode,
+                    versionName = mergedFlavor?.versionName,
+                    minSdkVersion = componentConfig.minSdk.getApiString(),
+                    targetSdkVersion = mergedFlavor?.targetSdkVersion?.apiString,
+                    maxSdkVersion = mergedFlavor?.maxSdkVersion,
+                    testOnly = false,
+                    extractNativeLibs = null,
+                    generatedLocaleConfigAttribute = null,
+                    profileable = false,
+                    /* The output destination */
+                    outMergedManifestLocation = primaryManifest.get().absolutePath,
+                    /* Extra outputs that can probably be null. */
+                    outAaptSafeManifestLocation = null,
+                    /* Either LIBRARY or APPLICATION. When using LIBRARY we can't add lib dependencies */
+                    mergeType = ManifestMerger2.MergeType.FUSED_LIBRARY,
+                    /* Manifest placeholders. Doing this the way the library manifest does. */
+                    placeHolders = mergedFlavor?.manifestPlaceholders.orEmpty() + variant.manifestPlaceholders.get(),
+                    /* Optional features to be enabled. */
+                    optionalFeatures = setOf(ManifestMerger2.Invoker.Feature.NO_PLACEHOLDER_REPLACEMENT),
+                    /* Not sure, but it's empty in the lib processor */
+                    dependencyFeatureNames = setOf(),
+                    /* Output file with diagnostic info. I think. */
+                    reportFile = reportFile.asFile,
+                    /* Logging */
+                    logger = LoggerWrapper(target.logger)
+                )
             }
-            processManifestTask.configure { finalizedBy(reprocessManifestTask) }
         }
     }
 
@@ -185,53 +215,28 @@ open class GreasePlugin : Plugin<Project> {
      */
     private fun configureVariantJniLibs(
         target: Project,
-        variant: LibraryVariant,
-        configuration: Configuration,
+        variant: Variant,
+        configurations: Array<out Configuration>,
         logger: Logger
     ) {
         val log = logger.child("configureVariantJniLibs")
-        log.i { "Configuring variant ${variant.name}..." }
+        log.d { "Configuring variant ${variant.name}..." }
 
-        val anchorTaskName = nameOf("copy", variant.name, "JniLibsProjectAndLocalJars")
-        val extractorTask = target.tasks.register(anchorTaskName.greasify()) {
-            val anchorTask = target.tasks[anchorTaskName] as LibraryJniLibsTask
-            inputs.files(configuration.artifactsOf(AndroidArtifacts.ArtifactType.JNI))
-            // Option 1: use the directory property. This fails, Gradle can't create this task
-            // because it is already the output directory of someone else.
-            // outputs.dir(anchorTask.outputDirectory)
-            // Option 2: resolve the directory. I think that in this case we MUST add a dependsOn()
-            // or we won't be sure that the directory is available.
-            dependsOn(anchorTask)
-            outputs.dir(anchorTask.outputDirectory.get())
-            log.i { "Configured output directory to be ${anchorTask.outputDirectory.get()}." }
-            // Option 3: declare the exact files we'll be copying. This was valuable in my opinion,
-            // But this configuration is causing deadlocks. Asked about it here
-            // https://discuss.gradle.org/t/task-outputs-deadlock-how-to-declare-lazy-outputs-based-on-lazy-inputs/37107
-            /* outputs.files(inputs.files.elements.map {
-                log.i { "Configuring outputs - input artifacts were resolved, ${it.size}. Mapping them to output files." }
-                val outputRoot = anchorTask.outputDirectory.get()
-                val outputFiles = it.flatMap { inputRoot ->
-                    val inputSharedLibraries = inputRoot.asFile.listSharedLibrariesRecursive()
-                    log.i { "Configuring outputs - found ${inputSharedLibraries.size} libraries in ${inputRoot.asFile}, mapping to ${outputRoot.asFile}..." }
-                    inputSharedLibraries.map { sharedLibrary ->
-                        log.i { "Configuring outputs - mapping shared library ${sharedLibrary.toRelativeString(inputRoot.asFile)}..." }
-                        sharedLibrary.moveHierarchy(inputRoot.asFile, outputRoot.asFile)
-                    }
-                }
-                // Spread files and create a new collection, so that we return Provider<FileCollection>
-                // to the outputs. This is also useful to lose the task dependency information that
-                // we don't want to carry over from inputs to outputs.
-                target.files(*outputFiles.toTypedArray())
-            }) */
+        val creationConfig = variant as ComponentCreationConfig
 
-            doFirst {
-                log.i { "Executing for variant ${variant.name} and ${inputs.files.files.size} roots..." }
-                inputs.files.files.forEach { inputRoot ->
-                    log.i { "Found shared libraries root: $inputRoot" }
-                    val outputRoot = anchorTask.outputDirectory.get().asFile
+        target.locateTask(creationConfig.computeTaskName("copy", "JniLibsProjectAndLocalJars"))?.configure {
+            val copyJniTask = this as LibraryJniLibsTask
+            val extraJniLibs = configurations.artifactsOf(AndroidArtifacts.ArtifactType.JNI)
+            dependsOn(extraJniLibs)
+
+            fun injectJniLibs() {
+                log.d { "Executing for variant ${variant.name} and ${extraJniLibs.files.size} roots..." }
+                extraJniLibs.files.forEach { inputRoot ->
+                    log.d { "Found shared libraries root: $inputRoot" }
+                    val outputRoot = copyJniTask.outputDirectory.get().asFile
                     val sharedLibraries = inputRoot.listFilesRecursive("so")
                     sharedLibraries.forEach {
-                        log.i { "Copying ${it.toRelativeString(inputRoot)} from inputRoot=$inputRoot to outputRoot=$outputRoot..." }
+                        log.d { "Copying ${it.toRelativeString(inputRoot)} from inputRoot=$inputRoot to outputRoot=$outputRoot..." }
                         target.copy {
                             from(it)
                             into(it.relocate(inputRoot, outputRoot).parentFile)
@@ -239,10 +244,12 @@ open class GreasePlugin : Plugin<Project> {
                     }
                 }
             }
-        }
-        target.tasks.configureEach {
-            if (name == anchorTaskName) {
-                finalizedBy(extractorTask)
+
+            val files = projectNativeLibs.get().files().files + localJarsNativeLibs?.files.orEmpty()
+            if (files.isNotEmpty()) {
+                doLast { injectJniLibs() }
+            } else {
+                injectJniLibs()
             }
         }
     }
@@ -305,41 +312,52 @@ open class GreasePlugin : Plugin<Project> {
      */
     private fun configureVariantResources(
         target: Project,
-        variant: LibraryVariant,
-        configuration: Configuration,
+        variant: Variant,
+        configurations: Array<out Configuration>,
         logger: Logger
     ) {
+
         val log = logger.child("configureVariantResources")
-        log.i { "Configuring variant ${variant.name}..." }
-        val anchorTaskName = nameOf("package", variant.name, "Resources")
-        val greaseTask = target.tasks.register(anchorTaskName.greasify()) {
-            val anchorTask = target.tasks[anchorTaskName] as MergeResources
-            dependsOn(anchorTask)
-            inputs.files(configuration.artifactsOf(AndroidArtifacts.ArtifactType.ANDROID_RES))
-            outputs.dir(anchorTask.outputDir.get())
-            doFirst {
-                log.i { "Executing for variant ${variant.name} and ${inputs.files.files.size} roots..." }
-                inputs.files.files.forEach { inputRoot ->
-                    log.i { "Found resources root: $inputRoot" }
-                    val outputRoot = anchorTask.outputDir.get().asFile
-                    val outputPrefix = inputRoot.parentFile.name.map { char ->
-                        if (char.isLetterOrDigit()) char else '_'
-                    }.joinToString(separator = "")
-                    val resources = inputRoot.listFilesRecursive("xml")
-                    resources.forEach {
-                        log.i { "Copying ${it.toRelativeString(inputRoot)} (prefix=$outputPrefix) from inputRoot=$inputRoot to outputRoot=$outputRoot..." }
-                        target.copy {
-                            from(it)
-                            into(it.relocate(inputRoot, outputRoot).parentFile)
-                            rename { "${outputPrefix}_$it" }
-                        }
-                    }
-                }
+        log.d { "Configuring variant ${variant.name}..." }
+        val creationConfig = variant as ComponentCreationConfig
+
+        target.locateTask(creationConfig.computeTaskName("package", "Resources"))?.configure {
+            this as MergeResources
+
+            val resourcesMergingWorkdir = target.greaseBuildDir.get().dir(variant.name).dir("resources")
+            val mergedResourcesDir = resourcesMergingWorkdir.dir("merged")
+            val blameDir = resourcesMergingWorkdir.dir("blame")
+            val extraAndroidRes = configurations.artifactsOf(AndroidArtifacts.ArtifactType.ANDROID_RES)
+            dependsOn(extraAndroidRes)
+
+            outputs.upToDateWhen { false } // always execute
+
+            fun injectResources() {
+                target.delete(resourcesMergingWorkdir)
+
+                val executorFacade = Workers.withGradleWorkers(
+                    creationConfig.services.projectInfo.path,
+                    path,
+                    workerExecutor,
+                    analyticsService
+                )
+                log.d { "Merge additional resources into $mergedResourcesDir" }
+                mergeResourcesWithCompilationService(
+                    resCompilerService = CopyToOutputDirectoryResourceCompilationService,
+                    incrementalMergedResources = mergedResourcesDir.asFile,
+                    mergedResources = outputDir.asFile.get(),
+                    resourceSets = extraAndroidRes.files.toList(),
+                    minSdk = minSdk.get(),
+                    aaptWorkerFacade = executorFacade,
+                    blameLogOutputFolder = blameDir.asFile,
+                    logger = this.logger
+                )
             }
-        }
-        target.tasks.configureEach {
-            if (name == anchorTaskName) {
-                finalizedBy(greaseTask)
+
+            if (inputs.hasInputs) {
+                doLast { injectResources() }
+            } else {
+                injectResources()
             }
         }
     }
@@ -363,35 +381,172 @@ open class GreasePlugin : Plugin<Project> {
      */
     private fun configureVariantSources(
         target: Project,
-        variant: LibraryVariant,
-        configuration: Configuration,
+        variant: Variant,
+        configurations: Array<out Configuration>,
+        greaseExtension: GreaseExtension,
         logger: Logger
     ) {
         val log = logger.child("configureVariantSources")
-        log.i { "Configuring variant ${variant.name}..." }
-        val compileTask = variant.javaCompileProvider // compile<>JavaWithJavac
-        val bundleTaskName = nameOf("sync", variant.name, "LibJars")
-        val greaseTask = target.tasks.register(compileTask.name.greasify()) {
-            dependsOn(compileTask)
-            // There are many options here. PROCESSED_JAR, PROCESSED_AAR, CLASSES, CLASSES_JAR ...
-            // CLASSES_JAR seems to be the best though it's not clear if it's jetified or not.
-            inputs.files(configuration.artifactsOf(AndroidArtifacts.ArtifactType.CLASSES_JAR))
-            outputs.dir(compileTask.get().destinationDirectory.get())
+        log.d { "Configuring variant ${variant.name}..." }
+
+        val creationConfig = variant as ComponentCreationConfig
+
+        val workdir = target.greaseBuildDir.get().dir(variant.name)
+        val aarExtractWorkdir = workdir.dir("extract").dir("aar")
+        val jarExtractWorkdir = workdir.dir("extract").dir("jar")
+        val jarFileName = "classes.jar"
+
+        val bundleLibraryTask = creationConfig.taskContainer.bundleLibraryTask
+
+        val greaseExpandTask = target.tasks.locateOrRegisterTask(
+            creationConfig.computeTaskName("extract", "Aar").greasify(),
+        ) {
+            val bundleAar = bundleLibraryTask?.get() as BundleAar
+
+            outputs.upToDateWhen { false } // always execute
+
+            inputs.file(bundleAar.archiveFile)
+            outputs.file(aarExtractWorkdir.file(jarFileName).asFile)
+
             doFirst {
-                log.i { "Executing for variant ${variant.name} and ${inputs.files.files.size} roots..." }
-                inputs.files.files.forEach { inputJar ->
-                    log.i { "Processing inputJar=$inputJar outputDir=${compileTask.get().destinationDirectory.get()}..." }
-                    val inputFiles = target.zipTree(inputJar).matching { include("**/*.class") }
-                    target.copy {
-                        from(inputFiles)
-                        into(outputs.files.singleFile)
-                    }
-                }
+                target.delete(aarExtractWorkdir)
+                unzipTo(aarExtractWorkdir.asFile, bundleAar.archiveFile.get().asFile)
             }
         }
-        compileTask.configure { finalizedBy(greaseTask) }
-        target.tasks.configureEach {
-            if (name == bundleTaskName) dependsOn(greaseTask)
+
+        val greaseProcessTask = target.tasks.locateOrRegisterTask(
+            creationConfig.computeTaskName("process", "Jar").greasify(),
+        ) {
+
+            // There are many options here. PROCESSED_JAR, PROCESSED_AAR, CLASSES, CLASSES_JAR ...
+            // CLASSES_JAR seems to be the best though it's not clear if it's jetified or not.
+            val extraJars = configurations.artifactsOf(AndroidArtifacts.ArtifactType.CLASSES_JAR)
+            dependsOn(extraJars)
+            dependsOn(greaseExpandTask)
+
+            outputs.upToDateWhen { false } // always execute
+            inputs.files(greaseExpandTask.get().outputs.files)
+            outputs.dir(jarExtractWorkdir)
+
+            fun injectClasses(inputJar: File) {
+                log.d { "Processing inputJar=$inputJar outputDir=${jarExtractWorkdir}..." }
+                val inputFiles = target.zipTree(inputJar).matching { include("**/*.class") }
+                target.copy {
+                    from(inputFiles)
+                    into(jarExtractWorkdir)
+                }
+            }
+
+            doFirst {
+                target.delete(jarExtractWorkdir)
+                log.d { "Executing merging for variant ${variant.name} and ${extraJars.files.size} roots..." }
+                extraJars.files.forEach(::injectClasses)
+                aarExtractWorkdir.file(jarFileName).asFile.run(::injectClasses)
+            }
+        }
+
+        val greaseShadowTask = target.tasks.locateOrRegisterTask(
+            creationConfig.computeTaskName("shadow", "Aar").greasify(),
+            ShadowJar::class.java
+        ) {
+            val compileTask = creationConfig.taskContainer.javacTask
+            val extraManifests = configurations.artifactsOf(AndroidArtifacts.ArtifactType.MANIFEST)
+            val greaseShadowDir = workdir.dir("shadow")
+            val bundleAar = bundleLibraryTask?.get() as BundleAar
+
+            outputs.upToDateWhen { false } // always execute
+
+            dependsOn(extraManifests)
+            dependsOn(greaseExpandTask)
+            dependsOn(greaseProcessTask)
+
+            archiveFileName.set(jarFileName)
+            destinationDirectory.set(greaseShadowDir)
+
+            from(greaseProcessTask.get().outputs)
+            val packagesToReplace = mutableMapOf<String, String>()
+
+            doFirst {
+                target.delete(greaseShadowDir)
+                greaseShadowDir.asFile.mkdirs()
+
+                log.d { "Executing shadowing for variant ${variant.name} and ${extraManifests.files.size} roots with namespace ${variant.namespace.get()}..." }
+                extraManifests.forEach { inputFile ->
+                    val manifestData = parseManifest(inputFile, true, { true }, defaultIssueReporter)
+                    manifestData.packageName?.let { fromPackageName ->
+                        log.d { "Processing R class from $fromPackageName manifestInput=${inputFile.path} outputDir=${compileTask.get().destinationDirectory.get()}..." }
+                        relocate(RClassRelocator(fromPackageName, variant.namespace.get(), log))
+                    }
+                }
+
+                if (greaseExtension.isRelocationEnabled) {
+                    greaseProcessTask.get().outputs.files
+                        .asSequence()
+                        .flatMap { inputFile -> inputFile.packageNames }
+                        .distinct()
+                        .forEach { packageName ->
+                            val newPackageName = "${greaseExtension.relocationPrefix}.$packageName"
+                            log.d { "Relocate package from $packageName to $newPackageName" }
+                            relocate(packageName, newPackageName)
+                            packagesToReplace[packageName] = newPackageName
+                        }
+
+                    greaseExtension.relocators.forEach { relocator ->
+                        relocate(relocator)
+                        if (relocator is SimpleRelocator) {
+                            packagesToReplace[relocator.pattern] = relocator.shadedPattern
+                        }
+                    }
+                    greaseExtension.transformers.forEach(::transform)
+
+                }
+            }
+
+            doLast {
+                val shadowJar = greaseShadowDir.file(jarFileName).asFile
+                val shadowManifest = greaseShadowDir.file("AndroidManifest.xml").asFile
+                log.d { "Copy shaded inputJar=${shadowJar} outputDir=$aarExtractWorkdir..." }
+                target.copy {
+                    from(shadowJar)
+                    into(aarExtractWorkdir)
+                }
+
+                val manifestWriter = shadowManifest.bufferedWriter()
+                val manifestReader = aarExtractWorkdir.file("AndroidManifest.xml").asFile.bufferedReader()
+
+                manifestReader.useLines { strings ->
+                    strings
+                        .map { string ->
+                            packagesToReplace.entries.fold(string) { acc, (from, to) ->
+                                acc.replace(from, to)
+                            }
+                        }.forEach {
+                            manifestWriter.write(it)
+                            manifestWriter.newLine()
+                        }
+                }
+                manifestWriter.close()
+                target.copy {
+                    from(shadowManifest)
+                    into(aarExtractWorkdir)
+                }
+
+                val oldArchive = bundleAar.archiveFile.get().asFile
+                val archiveParent = oldArchive.parentFile
+                val archiveName = oldArchive.name
+                target.delete(oldArchive)
+                zipTo(archiveParent.file(archiveName), aarExtractWorkdir.asFile)
+            }
+        }
+
+        bundleLibraryTask?.configure {
+            finalizedBy(greaseExpandTask)
+        }
+        greaseExpandTask.configure {
+            finalizedBy(greaseProcessTask)
+        }
+        greaseProcessTask.configure {
+            finalizedBy(greaseShadowTask)
         }
     }
 
@@ -406,31 +561,33 @@ open class GreasePlugin : Plugin<Project> {
      */
     private fun configureVariantAssets(
         target: Project,
-        variant: LibraryVariant,
-        configuration: Configuration,
+        variant: Variant,
+        configurations: Array<out Configuration>,
         logger: Logger
     ) {
         val log = logger.child("configureVariantAssets")
-        log.i { "Configuring variant ${variant.name}..." }
-        val compileTask = variant.mergeAssetsProvider // package<>Assets
-        val greaseTask = target.tasks.register(compileTask.name.greasify()) {
-            dependsOn(compileTask)
-            inputs.files(configuration.artifactsOf(AndroidArtifacts.ArtifactType.ASSETS))
-            outputs.dir(compileTask.get().outputDir.get())
-            doFirst {
-                log.i { "Executing for variant ${variant.name} and ${inputs.files.files.size} roots..." }
-                inputs.files.files.forEach { inputRoot ->
-                    log.i { "Found asset folder root: $inputRoot" }
-                    // TODO crash/warn if any asset is overwritten
+        log.d { "Configuring variant ${variant.name}..." }
+        val creationConfig = variant as ComponentCreationConfig
+        creationConfig.taskContainer.mergeAssetsTask.configure {
+            val extraAssets = configurations.artifactsOf(AndroidArtifacts.ArtifactType.ASSETS)
+            dependsOn(extraAssets)
+            fun injectAssets() {
+                log.d { "Executing for variant ${variant.name} and ${extraAssets.files.size} roots..." }
+                extraAssets.files.forEach { inputRoot ->
+                    log.d { "Found asset folder root: $inputRoot" }
                     val inputFiles = target.fileTree(inputRoot)
                     target.copy {
                         from(inputFiles)
-                        into(outputs.files.singleFile)
+                        into(outputDir.get())
                     }
                 }
             }
+            if (inputs.hasInputs) {
+                doLast { injectAssets() }
+            } else {
+                injectAssets()
+            }
         }
-        compileTask.configure { finalizedBy(greaseTask) }
     }
 
     /**
@@ -458,27 +615,24 @@ open class GreasePlugin : Plugin<Project> {
      */
     private fun configureVariantProguardFiles(
         target: Project,
-        variant: LibraryVariant,
-        configuration: Configuration,
+        variant: Variant,
+        configurations: Array<out Configuration>,
         logger: Logger
     ) {
         val log = logger.child("configureVariantProguardFiles")
-        log.i { "Configuring variant ${variant.name}..." }
-        target.tasks.configureEach {
-            if (name == nameOf("merge", variant.name, "ConsumerProguardFiles")) {
-                val task = this as MergeFileTask
-                // UNFILTERED_PROGUARD_RULES, FILTERED_PROGUARD_RULES, AAPT_PROGUARD_RULES, ...
-                // UNFILTERED_PROGUARD_RULES is output of the AarTransform. FILTERED_PROGUARD_RULES
-                // is processed by another transform and is probably what we want in the end.
-                val extraInputs = configuration.artifactsOf(AndroidArtifacts.ArtifactType.FILTERED_PROGUARD_RULES)
-                val inputs = task.inputFiles.plus(extraInputs)
-                task.inputFiles = inputs
-                task.doFirst {
-                    require (task.inputFiles === inputs) {
-                        "Input proguard files have been changed after our configureEach callback!"
-                    }
-                    log.i { "Input proguard files: ${inputFiles.files.joinToString()}" }
-                }
+        log.d { "Configuring variant ${variant.name}..." }
+        val creationConfig = variant as ComponentCreationConfig
+        target.locateTask(creationConfig.computeTaskName("merge", "ConsumerProguardFiles"))?.configure {
+            val mergeFileTask = this as MergeFileTask
+            // UNFILTERED_PROGUARD_RULES, FILTERED_PROGUARD_RULES, AAPT_PROGUARD_RULES, ...
+            // UNFILTERED_PROGUARD_RULES is output of the AarTransform. FILTERED_PROGUARD_RULES
+            // is processed by another transform and is probably what we want in the end.
+            val extraInputs = configurations.artifactsOf(AndroidArtifacts.ArtifactType.FILTERED_PROGUARD_RULES)
+            dependsOn(extraInputs)
+
+            mergeFileTask.inputs.files(extraInputs + mergeFileTask.inputFiles.files)
+            mergeFileTask.doFirst {
+                log.d { "Input proguard files: ${mergeFileTask.inputs.files.joinToString()}" }
             }
         }
     }

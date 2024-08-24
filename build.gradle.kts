@@ -1,31 +1,4 @@
-buildscript {
-    repositories {
-        maven("build/maven")
-        maven("https://dl.bintray.com/deepmedia/tools/")
-        google()
-        jcenter()
-    }
-
-    configurations.configureEach {
-        resolutionStrategy.cacheChangingModulesFor(10, TimeUnit.SECONDS)
-    }
-
-    dependencies {
-        classpath("io.deepmedia.tools:publisher:0.4.0")
-        classpath("io.deepmedia.tools:grease:0.2.0") {
-            isChanging = true
-        }
-    }
-}
-
-allprojects {
-    repositories {
-        mavenCentral()
-        google()
-        jcenter()
-    }
-}
-
-tasks.register("clean", Delete::class) {
-    delete(buildDir)
+plugins {
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
 }
