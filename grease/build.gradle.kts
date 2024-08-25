@@ -35,4 +35,8 @@ deployer {
         scm.fromGithub("deepmedia", "Grease")
         developer("natario1", "mattia@deepmedia.io", "DeepMedia", "https://deepmedia.io")
     }
+
+    localSpec {
+        directory = layout.buildDirectory.dir("inspect")
+    }
 }

@@ -18,3 +18,5 @@ jobs:
       - uses: gradle/actions/wrapper-validation@v4
       - name: Check local deployment
         run: ./gradlew build deployLocal
+      - name: Check sample app
+        run: cd tests && ../gradlew sample:assembleDebug
