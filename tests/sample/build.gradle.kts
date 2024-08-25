@@ -63,10 +63,8 @@ dependencies {
     // Includes resource and some manifest changes
     implementation("androidx.lifecycle:lifecycle-runtime:2.8.4")
 
-    afterEvaluate {
-        // Includes native libraries
-        "greaseApi"("org.tensorflow:tensorflow-lite:2.3.0")
-        // Manifest changes, layout resources
-        "grease"("com.otaliastudios:cameraview:2.7.2")
-    }
+    // Includes native libraries
+    greaseApi("org.tensorflow:tensorflow-lite:2.3.0")
+    // Manifest changes, layout resources
+    grease("com.otaliastudios:cameraview:2.7.2")
 }

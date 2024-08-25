@@ -85,7 +85,7 @@ private fun Project.createGrease(name: String, isTransitive: Boolean): Configura
     configurations.configureEach {
         val other = this
         if (other.name == nameOf(name, "compileClasspath")) {
-            extendsFrom(configuration)
+            other.extendsFrom(configuration)
         }
     }
     return configuration
