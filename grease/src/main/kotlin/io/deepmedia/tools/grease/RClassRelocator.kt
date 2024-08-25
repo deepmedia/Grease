@@ -16,7 +16,7 @@ internal class RClassRelocator(
 
     init {
         include( "%regex[$fromRPathRegex\\$.*]")
-        include( "%regex[$fromRPathRegex.*]")
+        include( "%regex[$fromRPathRegex]")
     }
 
     override fun canRelocateClass(className: String?): Boolean = false
