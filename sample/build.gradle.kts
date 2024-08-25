@@ -9,8 +9,8 @@ grease {
 
 android {
     namespace = "io.deepmedia.tools.grease.sample"
-    ndkVersion = "20.1.5948944"
-    compileSdk = 29
+    ndkVersion = "23.1.7779620"
+    compileSdk = 34
 
     defaultConfig {
         minSdk = 21

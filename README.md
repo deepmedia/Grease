@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/deepmedia/Grease/workflows/Build/badge.svg?event=push)](https://github.com/deepmedia/Grease/actions)
+[![Build Status](https://github.com/deepmedia/Grease/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/deepmedia/Grease/actions)
 [![Release](https://img.shields.io/github/release/deepmedia/Grease.svg)](https://github.com/deepmedia/Grease/releases)
 [![Issues](https://img.shields.io/github/issues-raw/deepmedia/Grease.svg)](https://github.com/deepmedia/Grease/issues)
 
