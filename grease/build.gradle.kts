@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.deepmedia.tools"
-version = "0.4.0"
+version = "0.3.0"
 
 gradlePlugin {
     plugins {
