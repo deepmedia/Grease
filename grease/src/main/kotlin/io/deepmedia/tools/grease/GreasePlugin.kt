@@ -2,6 +2,8 @@
 
 package io.deepmedia.tools.grease
 
+import com.android.build.api.component.analytics.AnalyticsEnabledLibraryVariant
+import com.android.build.api.component.analytics.AnalyticsEnabledVariant
 import com.android.build.api.variant.AndroidComponentsExtension
 import com.android.build.api.variant.Variant
 import com.android.build.api.variant.impl.getApiString
@@ -121,7 +123,7 @@ open class GreasePlugin : Plugin<Project> {
         val log = logger.child("configureVariantManifest")
         log.d { "Configuring variant output ${variant.name}..." }
 
-        val componentConfig = variant as ComponentCreationConfig
+        val componentConfig = variant.componentCreationConfigOrThrow()
 
         target.locateTask(componentConfig.computeTaskName("process", "Manifest"))?.configure {
             val processManifestTask = this as ProcessLibraryManifest
@@ -222,7 +224,7 @@ open class GreasePlugin : Plugin<Project> {
         val log = logger.child("configureVariantJniLibs")
         log.d { "Configuring variant ${variant.name}..." }
 
-        val creationConfig = variant as ComponentCreationConfig
+        val creationConfig = variant.componentCreationConfigOrThrow()
 
         target.locateTask(creationConfig.computeTaskName("copy", "JniLibsProjectAndLocalJars"))?.configure {
             val copyJniTask = this as LibraryJniLibsTask
@@ -319,7 +321,7 @@ open class GreasePlugin : Plugin<Project> {
 
         val log = logger.child("configureVariantResources")
         log.d { "Configuring variant ${variant.name}..." }
-        val creationConfig = variant as ComponentCreationConfig
+        val creationConfig = variant.componentCreationConfigOrThrow()
 
         target.locateTask(creationConfig.computeTaskName("package", "Resources"))?.configure {
             this as MergeResources
@@ -389,7 +391,7 @@ open class GreasePlugin : Plugin<Project> {
         val log = logger.child("configureVariantSources")
         log.d { "Configuring variant ${variant.name}..." }
 
-        val creationConfig = variant as ComponentCreationConfig
+        val creationConfig = variant.componentCreationConfigOrThrow()
 
         val workdir = target.greaseBuildDir.get().dir(variant.name)
         val aarExtractWorkdir = workdir.dir("extract").dir("aar")
@@ -567,7 +569,7 @@ open class GreasePlugin : Plugin<Project> {
     ) {
         val log = logger.child("configureVariantAssets")
         log.d { "Configuring variant ${variant.name}..." }
-        val creationConfig = variant as ComponentCreationConfig
+        val creationConfig = variant.componentCreationConfigOrThrow()
         creationConfig.taskContainer.mergeAssetsTask.configure {
             val extraAssets = configurations.artifactsOf(AndroidArtifacts.ArtifactType.ASSETS)
             dependsOn(extraAssets)
@@ -621,7 +623,7 @@ open class GreasePlugin : Plugin<Project> {
     ) {
         val log = logger.child("configureVariantProguardFiles")
         log.d { "Configuring variant ${variant.name}..." }
-        val creationConfig = variant as ComponentCreationConfig
+        val creationConfig = variant.componentCreationConfigOrThrow()
         target.locateTask(creationConfig.computeTaskName("merge", "ConsumerProguardFiles"))?.configure {
             val mergeFileTask = this as MergeFileTask
             // UNFILTERED_PROGUARD_RULES, FILTERED_PROGUARD_RULES, AAPT_PROGUARD_RULES, ...
@@ -635,5 +637,13 @@ open class GreasePlugin : Plugin<Project> {
                 log.d { "Input proguard files: ${mergeFileTask.inputs.files.joinToString()}" }
             }
         }
+    }
+}
+
+private fun Variant.componentCreationConfigOrThrow(): ComponentCreationConfig {
+    return when (this) {
+        is ComponentCreationConfig -> this
+        is AnalyticsEnabledVariant -> this.delegate.componentCreationConfigOrThrow()
+        else -> error("Could not find ComponentCreationConfig in $this.")
     }
 }
