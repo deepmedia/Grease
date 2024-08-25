@@ -30,13 +30,49 @@ deployer {
     }
 
     projectInfo {
-        description = "Fat AARs for Android."
+        description = "Fat AARs for Android, to distribute multiple library modules in a single file with no dependencies, with relocation support."
         url = "https://github.com/deepmedia/Grease"
         scm.fromGithub("deepmedia", "Grease")
-        developer("natario1", "mattia@deepmedia.io", "DeepMedia", "https://deepmedia.io")
+        developer("Mattia Iavarone", "mattia@deepmedia.io", "DeepMedia", "https://deepmedia.io")
+        license(apache2)
     }
 
+    signing {
+        key = secret("SIGNING_KEY")
+        password = secret("SIGNING_PASSWORD")
+    }
+
+    // use "deployLocal" to deploy to local maven repository
     localSpec {
-        directory = layout.buildDirectory.dir("inspect")
+        directory.set(rootProject.layout.buildDirectory.get().dir("inspect"))
+        signing {
+            key = absent()
+            password = absent()
+        }
+    }
+
+    // use "deployNexus" to deploy to OSSRH / maven central
+    nexusSpec {
+        auth.user = secret("SONATYPE_USER")
+        auth.password = secret("SONATYPE_PASSWORD")
+        syncToMavenCentral = true
+    }
+
+    // use "deployNexusSnapshot" to deploy to sonatype snapshots repo
+    nexusSpec("snapshot") {
+        auth.user = secret("SONATYPE_USER")
+        auth.password = secret("SONATYPE_PASSWORD")
+        repositoryUrl = ossrhSnapshots1
+        release.version = "latest-SNAPSHOT"
+    }
+
+    // use "deployGithub" to deploy to github packages
+    githubSpec {
+        repository = "Grease"
+        owner = "deepmedia"
+        auth {
+            user = secret("GHUB_USER")
+            token = secret("GHUB_PERSONAL_ACCESS_TOKEN")
+        }
     }
 }
