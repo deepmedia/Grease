@@ -68,7 +68,5 @@ dependencies {
     // Manifest changes, layout resources
     grease("com.otaliastudios:cameraview:2.7.2")
 
-    // Doesn't work. TODO: we need to configure grease configurations so that in case of multiple matching
-    // variants, they prefer one where com.android.build.api.attributes.BuildTypeAttr is set to release
-    // grease(project(":sample-dependency-pure"))
+    grease(project(":sample-dependency-pure"))
 }

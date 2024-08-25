@@ -118,7 +118,11 @@ internal fun Project.createProductFlavorConfigurations(
             val buildTypedSubFlavor = nameOf(subFlavor, variant.buildType.orEmpty())
             log.d { "Creating buildTyped sub product flavor configuration ${buildTypedSubFlavor.greasify()}..." }
             val config = createGrease(buildTypedSubFlavor, isTransitive)
+            config.attributes {
+                attribute(BuildTypeAttr.ATTRIBUTE, objects.named(BuildTypeAttr::class, variant.buildType.orEmpty()))
+            }
             config.extendsFromSafely(grease(isTransitive), log)
+            config.extendsFromSafely(greaseOf(variant.buildType.orEmpty(), isTransitive), log)
             config.extendsFromSafely(greaseOf(subFlavor, isTransitive), log)
             config.extendsFromSafely(flavorConfiguration, log)
         }
@@ -153,6 +157,9 @@ internal fun Project.createVariantConfigurations(
 ) = androidComponent.onVariants { variant ->
     log.d { "Creating variant configuration ${variant.name.greasify()}..." }
     val config = createGrease(variant.name, isTransitive)
+    config.attributes {
+        attribute(BuildTypeAttr.ATTRIBUTE, objects.named(BuildTypeAttr::class, variant.buildType.orEmpty()))
+    }
     config.extendsFromSafely(grease(isTransitive), log)
     config.extendsFromSafely(greaseOf(variant.buildType.orEmpty(), isTransitive), log)
     variant.flavorName?.let { flavor ->
