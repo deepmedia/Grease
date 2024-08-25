@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
 }
 
 android {
@@ -7,6 +8,10 @@ android {
     compileSdk = 34
     defaultConfig {
         minSdk = 21
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
     }
 }
 

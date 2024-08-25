@@ -19,5 +19,6 @@ gradle-android = ["gradle-android-sdk-common", "gradle-android-build", "gradle-a
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 publisher = { id = "io.deepmedia.tools.deployer", version.ref = "publisher" }
 android-library = { id = "com.android.library", version.ref = "agp" }
