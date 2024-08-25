@@ -19,4 +19,4 @@ jobs:
       - name: Check local deployment
         run: ./gradlew build deployLocal
       - name: Check sample app
-        run: cd tests && ../gradlew sample:assembleDebug
+        run: cd tests && ../gradlew sample-library:assembleDebug
