@@ -1,5 +1,4 @@
 pluginManagement {
-    includeBuild("./grease")
     repositories {
         google()
         gradlePluginPortal()
@@ -14,8 +13,11 @@ dependencyResolutionManagement {
         gradlePluginPortal()
         mavenCentral()
     }
+    versionCatalogs {
+        create("libs")
+    }
 }
 
-rootProject.name = "grease"
+rootProject.name = "Grease"
 
-include(":sample")
+include(":grease")

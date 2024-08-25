@@ -1,4 +1,5 @@
 pluginManagement {
+    includeBuild("..")
     repositories {
         google()
         gradlePluginPortal()
@@ -20,4 +21,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "grease"
+rootProject.name = "Grease"
+
+include(":sample")

@@ -42,6 +42,7 @@ internal fun <T : Task> TaskContainer.locateOrRegisterTask(
     return locateTask(name, type) ?: registerTask(name, type, body = body)
 }
 
+@Suppress("UNCHECKED_CAST")
 internal fun TaskContainer.locateOrRegisterTask(name: String, body: Task.() -> (Unit)): TaskProvider<Task> {
     return (locateTask(name, DefaultTask::class.java) ?: registerTask(name, DefaultTask::class.java, body = body)) as TaskProvider<Task>
 }
