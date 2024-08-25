@@ -4,7 +4,7 @@ plugins {
 }
 
 grease {
-    relocationPrefix = "temp"
+    relocate()
 }
 
 android {
