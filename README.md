@@ -5,29 +5,26 @@
 # Grease
 
 A Gradle plugin for creating fat AARs, useful for distributing multiple modules in a single file.
-To install the plugin, you must configure the build script classpath:
+To install the plugin, apply it to your Android project:
 
 ```kotlin
-buildscript {
+// settings.gradle.kts
+pluginManagement {
     repositories {
-        jcenter()
-        google()
+        mavenCentral()
     }
-    dependencies {
-        classpath("io.deepmedia.tools:grease:0.2.0")
-    }
+}
+
+// build.gradle.kts
+plugins {
+    id("com.android.library")
+    id("io.deepmedia.tools.grease") version "0.4.0"
 }
 ```
 
+Note: it is important that Grease is applied *after* the Android library plugin.
+
 ## Usage
-
-To apply the plugin, declare it in your build script with the `io.deepmedia.tools.grease` id.
-This must be done after the com.android.library plugin:
-
-```groovy
-apply plugin: 'com.android.library'
-apply plugin: 'io.deepmedia.tools.grease'
-```
 
 Once applied, Grease will create Gradle configurations that you can use to select which of your
 dependencies should be bundled in the final fat AAR.
@@ -61,19 +58,21 @@ dependencies that you own, to be sure that they won't be present in the classpat
 
 ### Transitivity
 
-When you add a grease dependency, by default all transitive dependencies are greased as well, so
-they will become part of the fat AARs. To avoid this, you can mark the configuration as non transitive:
+By default, declaring a specific grease dependency **will not** include transitive dependencies. 
+To do so, you can use grease configurations ending in `Tree`:
 
 ```kotlin
-configurations["grease"].isTransitive = false
-configurations["greaseRelease"].isTransitive = false
-configurations["greaseDebug"].isTransitive = false
-
-// Variant specific configurations are created lazily so you must wait for them to be
-// available before modifying them.
-configurations.configureEach {
-    if (name == "greaseBlueCircleDebug") {
-        isTransitive = false
-    }
+dependencies {
+    grease("my-package:artifact:1.0.0") // not transitive
+    greaseTree("my-other-package:other-artifact:1.0.0") // transitive
 }
 ```
+
+### Relocations
+
+We support relocations through the popular [Shadow](https://github.com/GradleUp/shadow) plugin. Inside the `grease`
+extension, you can use:
+
+- `relocate(prefix: String)` to relocate all included packages by prefixing them with the given prefix. Defaults to `"grease"`.
+- `relocate(from: String, to: String, configure: Action<SimpleRelocator>)` to register a package-specific relocator,
+  as described in the [shadow plugin docs](https://gradleup.com/shadow/configuration/relocation/#relocating-packages)
