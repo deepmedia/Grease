@@ -481,27 +481,28 @@ open class GreasePlugin : Plugin<Project> {
                     }
                 }
 
-                if (greaseExtension.isRelocationEnabled) {
+                val relocationPrefix = greaseExtension.prefix.get()
+                if (relocationPrefix.isNotEmpty()) {
                     greaseProcessTask.get().outputs.files
                         .asSequence()
                         .flatMap { inputFile -> inputFile.packageNames }
                         .distinct()
                         .forEach { packageName ->
-                            val newPackageName = "${greaseExtension.relocationPrefix}.$packageName"
+                            val newPackageName = "${relocationPrefix}.$packageName"
                             log.d { "Relocate package from $packageName to $newPackageName" }
                             relocate(packageName, newPackageName)
                             packagesToReplace[packageName] = newPackageName
                         }
-
-                    greaseExtension.relocators.forEach { relocator ->
-                        relocate(relocator)
-                        if (relocator is SimpleRelocator) {
-                            packagesToReplace[relocator.pattern] = relocator.shadedPattern
-                        }
-                    }
-                    greaseExtension.transformers.forEach(::transform)
-
                 }
+
+                greaseExtension.relocators.get().forEach { relocator ->
+                    relocate(relocator)
+                    if (relocator is SimpleRelocator) {
+                        packagesToReplace[relocator.pattern] = relocator.shadedPattern
+                    }
+                }
+
+                greaseExtension.transformers.get().forEach(::transform)
             }
 
             doLast {
