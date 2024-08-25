@@ -40,11 +40,7 @@ private class ArtifactsFileCollection(private val fileCollections: List<FileColl
     }
 }
 
-
-internal fun Project.grease(isTransitive: Boolean) = greaseOf(if (isTransitive) "api" else "")
-
-internal fun Project.greaseOf(buildType: com.android.builder.model.BuildType, isTransitive: Boolean = false) =
-    greaseOf(buildType.name.configurationName(isTransitive))
+internal fun Project.grease(isTransitive: Boolean) = greaseOf("".configurationName(isTransitive))
 
 internal fun Project.greaseOf(variant: Variant, isTransitive: Boolean = false) =
     greaseOf(variant.name.configurationName(isTransitive))
@@ -91,7 +87,7 @@ private fun Project.createGrease(name: String, isTransitive: Boolean): Configura
     return configuration
 }
 
-private fun String.configurationName(isTransitive: Boolean) = if (isTransitive) nameOf(this, "api") else this
+private fun String.configurationName(isTransitive: Boolean) = if (isTransitive) nameOf(this, "tree") else this
 
 // Create the root configuration. Make compileOnly extend from it so that grease
 // artifacts are in the classpath and we don't have compile issues.

@@ -1,4 +1,4 @@
-package io.deepmedia.tools.grease.sample;
+package io.deepmedia.tools.grease.sample.library;
 
 import android.app.Application;
 import android.util.Log;

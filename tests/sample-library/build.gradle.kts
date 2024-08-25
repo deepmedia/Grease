@@ -8,7 +8,7 @@ grease {
 }
 
 android {
-    namespace = "io.deepmedia.tools.grease.sample"
+    namespace = "io.deepmedia.tools.grease.sample.library"
     ndkVersion = "23.1.7779620"
     compileSdk = 34
 
@@ -56,7 +56,7 @@ android {
 }
 
 dependencies {
-    greaseApi("androidx.core:core:1.0.0")
+    grease("androidx.core:core:1.0.0")
 
     // include deps to pom when publishing
     api("com.google.android.material:material:1.0.0")
@@ -64,7 +64,11 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime:2.8.4")
 
     // Includes native libraries
-    greaseApi("org.tensorflow:tensorflow-lite:2.3.0")
+    grease("org.tensorflow:tensorflow-lite:2.3.0")
     // Manifest changes, layout resources
     grease("com.otaliastudios:cameraview:2.7.2")
+
+    // Doesn't work. TODO: we need to configure grease configurations so that in case of multiple matching
+    // variants, they prefer one where com.android.build.api.attributes.BuildTypeAttr is set to release
+    // grease(project(":sample-dependency-pure"))
 }
