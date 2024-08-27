@@ -1,5 +1,3 @@
-@file:Suppress("UnstableApiUsage")
-
 package io.deepmedia.tools.grease
 
 import com.android.build.api.component.analytics.AnalyticsEnabledVariant
@@ -54,7 +52,6 @@ open class GreasePlugin : Plugin<Project> {
 
     private val defaultIssueReporter = DefaultIssueReporter(StdLogger(StdLogger.Level.WARNING))
 
-    @Suppress("NAME_SHADOWING")
     override fun apply(target: Project) {
         target.plugins.withId("com.android.library") {
             val log = Logger(target, "grease")
@@ -84,8 +81,8 @@ open class GreasePlugin : Plugin<Project> {
             }
             // Configure all variants.
             androidComponents.onVariants { variant ->
-                val log = log.child("configureVariant")
-                log.d { "Configuring variant ${variant.name}..." }
+                val childLog = log.child("configureVariant")
+                childLog.d { "Configuring variant ${variant.name}..." }
                 target.afterEvaluate {
                     configure(variant, target.greaseOf(variant), target.greaseOf(variant, true))
                 }
@@ -140,7 +137,6 @@ open class GreasePlugin : Plugin<Project> {
                 // To retrieve the secondary files, we must query the configuration artifacts.
                 val primaryManifest = processManifestTask.manifestOutputFile.asFile // overwrite
 
-                @Suppress("DEPRECATION")
                 val mergedFlavor = componentConfig.oldVariantApiLegacySupport?.mergedFlavor
 
                 log.d { "Merging manifests... primary=${primaryManifest.get()}, secondary=${extraManifests.files.joinToString()}" }
