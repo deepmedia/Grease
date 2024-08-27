@@ -536,6 +536,19 @@ open class GreasePlugin : Plugin<Project> {
             mustRunAfter(bundleLibraryTask)
             finalizedBy(greaseShadowTask)
         }
+        greaseShadowTask.configure {
+            mustRunAfter(bundleLibraryTask)
+        }
+        target.plugins.withId("org.gradle.maven-publish") {
+            target.tasks.withType(PublishToMavenRepository::class.java) {
+                val publication = publication
+                if (publication is DefaultMavenPublication) {
+                    if (creationConfig.name == publication.component.get().name) {
+                        dependsOn(greaseShadowTask)
+                    }
+                }
+            }
+        }
     }
 
     private fun replacePackagesInFile(
