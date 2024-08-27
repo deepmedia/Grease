@@ -2,7 +2,6 @@
 
 package io.deepmedia.tools.grease
 
-import com.android.build.api.component.analytics.AnalyticsEnabledLibraryVariant
 import com.android.build.api.component.analytics.AnalyticsEnabledVariant
 import com.android.build.api.variant.AndroidComponentsExtension
 import com.android.build.api.variant.Variant
@@ -31,12 +30,13 @@ import com.android.ide.common.resources.CopyToOutputDirectoryResourceCompilation
 import com.android.manifmerger.ManifestMerger2
 import com.android.manifmerger.ManifestProvider
 import com.android.utils.StdLogger
-import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator
+import com.github.jengelman.gradle.plugins.shadow.relocation.Relocator
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
-import org.gradle.kotlin.dsl.get
+import org.gradle.api.publish.maven.internal.publication.DefaultMavenPublication
+import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
 import org.gradle.kotlin.dsl.support.unzipTo
 import org.gradle.kotlin.dsl.support.zipTo
 import java.io.File
@@ -56,40 +56,39 @@ open class GreasePlugin : Plugin<Project> {
 
     @Suppress("NAME_SHADOWING")
     override fun apply(target: Project) {
-        require(target.plugins.hasPlugin("com.android.library")) {
-            "Grease must be applied after the com.android.library plugin."
-        }
-        val log = Logger(target, "grease")
-        val android = target.extensions["android"] as LibraryExtension
-        val androidComponents = target.extensions.getByType(AndroidComponentsExtension::class.java)
-        val greaseExtension = target.extensions.create("grease", GreaseExtension::class.java)
+        target.plugins.withId("com.android.library") {
+            val log = Logger(target, "grease")
+            val android = target.extensions.getByType(LibraryExtension::class.java)
+            val androidComponents = target.extensions.getByType(AndroidComponentsExtension::class.java)
+            val greaseExtension = target.extensions.create("grease", GreaseExtension::class.java)
 
-        debugGreasyConfigurationHierarchy(target, log)
+            debugGreasyConfigurationHierarchy(target, log)
 
-        // Create the configurations.
-        fun createConfigurations(isTransitive: Boolean) {
-            target.createRootConfiguration(isTransitive, log)
-            target.createProductFlavorConfigurations(androidComponents, isTransitive, log)
-            target.createBuildTypeConfigurations(android.buildTypes, isTransitive, log)
-            target.createVariantConfigurations(androidComponents, isTransitive, log)
-        }
-        createConfigurations(false)
-        createConfigurations(true)
+            // Create the configurations.
+            fun createConfigurations(isTransitive: Boolean) {
+                target.createRootConfiguration(isTransitive, log)
+                target.createProductFlavorConfigurations(androidComponents, isTransitive, log)
+                target.createBuildTypeConfigurations(android.buildTypes, isTransitive, log)
+                target.createVariantConfigurations(androidComponents, isTransitive, log)
+            }
+            createConfigurations(false)
+            createConfigurations(true)
 
-        fun configure(variant: Variant, vararg configurations: Configuration) {
-            configureVariantManifest(target, variant, configurations, log)
-            configureVariantJniLibs(target, variant, configurations, log)
-            configureVariantResources(target, variant, configurations, log)
-            configureVariantSources(target, variant, configurations, greaseExtension, log)
-            configureVariantAssets(target, variant, configurations, log)
-            configureVariantProguardFiles(target, variant, configurations, log)
-        }
-        // Configure all variants.
-        androidComponents.onVariants { variant ->
-            val log = log.child("configureVariant")
-            log.d { "Configuring variant ${variant.name}..." }
-            target.afterEvaluate {
-                configure(variant, target.greaseOf(variant), target.greaseOf(variant, true))
+            fun configure(variant: Variant, vararg configurations: Configuration) {
+                configureVariantManifest(target, variant, configurations, log)
+                configureVariantJniLibs(target, variant, configurations, log)
+                configureVariantResources(target, variant, configurations, log)
+                configureVariantSources(target, variant, configurations, greaseExtension, log)
+                configureVariantAssets(target, variant, configurations, log)
+                configureVariantProguardFiles(target, variant, configurations, log)
+            }
+            // Configure all variants.
+            androidComponents.onVariants { variant ->
+                val log = log.child("configureVariant")
+                log.d { "Configuring variant ${variant.name}..." }
+                target.afterEvaluate {
+                    configure(variant, target.greaseOf(variant), target.greaseOf(variant, true))
+                }
             }
         }
     }
@@ -432,7 +431,7 @@ open class GreasePlugin : Plugin<Project> {
 
             fun injectClasses(inputJar: File) {
                 log.d { "Processing inputJar=$inputJar outputDir=${jarExtractWorkdir}..." }
-                val inputFiles = target.zipTree(inputJar).matching { include("**/*.class") }
+                val inputFiles = target.zipTree(inputJar).matching { include("**/*.class", "**/*.kotlin_module") }
                 target.copy {
                     from(inputFiles)
                     into(jarExtractWorkdir)
@@ -466,7 +465,7 @@ open class GreasePlugin : Plugin<Project> {
             destinationDirectory.set(greaseShadowDir)
 
             from(greaseProcessTask.get().outputs)
-            val packagesToReplace = mutableMapOf<String, String>()
+            val addedPackagesNames = mutableSetOf<String>()
 
             doFirst {
                 target.delete(greaseShadowDir)
@@ -487,52 +486,35 @@ open class GreasePlugin : Plugin<Project> {
                         .asSequence()
                         .flatMap { inputFile -> inputFile.packageNames }
                         .distinct()
-                        .forEach { packageName ->
-                            val newPackageName = "${relocationPrefix}.$packageName"
+                        .map { packageName -> packageName to "${relocationPrefix}.$packageName" }
+                        .distinct()
+                        .filterNot { (packageName, _) -> addedPackagesNames.any(packageName::contains) }
+                        .forEach { (packageName, newPackageName) ->
                             log.d { "Relocate package from $packageName to $newPackageName" }
                             relocate(packageName, newPackageName)
-                            packagesToReplace[packageName] = newPackageName
+                            addedPackagesNames += packageName
                         }
                 }
 
-                greaseExtension.relocators.get().forEach { relocator ->
-                    relocate(relocator)
-                    if (relocator is SimpleRelocator) {
-                        packagesToReplace[relocator.pattern] = relocator.shadedPattern
-                    }
-                }
-
+                greaseExtension.relocators.get().forEach<Relocator?>(::relocate)
                 greaseExtension.transformers.get().forEach(::transform)
+                transform(KotlinModuleShadowTransformer(logger.child("kotlin_module")))
             }
 
             doLast {
                 val shadowJar = greaseShadowDir.file(jarFileName).asFile
-                val shadowManifest = greaseShadowDir.file("AndroidManifest.xml").asFile
                 log.d { "Copy shaded inputJar=${shadowJar} outputDir=$aarExtractWorkdir..." }
                 target.copy {
                     from(shadowJar)
                     into(aarExtractWorkdir)
                 }
 
-                val manifestWriter = shadowManifest.bufferedWriter()
-                val manifestReader = aarExtractWorkdir.file("AndroidManifest.xml").asFile.bufferedReader()
-
-                manifestReader.useLines { strings ->
-                    strings
-                        .map { string ->
-                            packagesToReplace.entries.fold(string) { acc, (from, to) ->
-                                acc.replace(from, to)
-                            }
-                        }.forEach {
-                            manifestWriter.write(it)
-                            manifestWriter.newLine()
-                        }
-                }
-                manifestWriter.close()
-                target.copy {
-                    from(shadowManifest)
-                    into(aarExtractWorkdir)
-                }
+                replacePackagesInFile(
+                    aarExtractWorkdir.file("AndroidManifest.xml").asFile,
+                    greaseShadowDir.file("AndroidManifest.xml").asFile,
+                    relocators,
+                    target,
+                )
 
                 val oldArchive = bundleAar.archiveFile.get().asFile
                 val archiveParent = oldArchive.parentFile
@@ -543,13 +525,45 @@ open class GreasePlugin : Plugin<Project> {
         }
 
         bundleLibraryTask?.configure {
-            finalizedBy(greaseExpandTask)
+            outputs.upToDateWhen { false }
+            finalizedBy(greaseShadowTask)
         }
         greaseExpandTask.configure {
+            mustRunAfter(bundleLibraryTask)
             finalizedBy(greaseProcessTask)
         }
         greaseProcessTask.configure {
+            mustRunAfter(bundleLibraryTask)
             finalizedBy(greaseShadowTask)
+        }
+    }
+
+    private fun replacePackagesInFile(
+        input: File,
+        output: File,
+        relocators: List<Relocator>,
+        target: Project,
+    ) {
+        val reader = input.bufferedReader()
+        val writer = output.bufferedWriter()
+        reader.useLines { strings ->
+            strings
+                .map { string ->
+                    relocators
+                        .filterNot { it is RClassRelocator }
+                        .fold(string) { acc, relocator ->
+                            relocator.applyToSourceContent(acc)
+                        }
+                }.forEach {
+                    writer.write(it)
+                    writer.newLine()
+                }
+        }
+        writer.close()
+
+        target.copy {
+            from(output)
+            into(input.parentFile)
         }
     }
 

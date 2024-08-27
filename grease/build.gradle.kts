@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.deepmedia.tools"
-version = "0.3.0"
+version = "0.7.0"
 
 gradlePlugin {
     plugins {
@@ -19,6 +19,8 @@ dependencies {
     implementation(libs.asm.commons)
     implementation(libs.gradle.shadow)
     implementation(libs.bundles.gradle.android)
+    implementation(libs.kotlinx.metadata.jvm)
+    implementation(libs.apache.ant)
 }
 
 deployer {
@@ -73,6 +75,15 @@ deployer {
         auth {
             user = secret("GHUB_USER")
             token = secret("GHUB_PERSONAL_ACCESS_TOKEN")
+        }
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "Local"
+            url = uri(rootProject.layout.buildDirectory.dir("grease_pub"))
         }
     }
 }
