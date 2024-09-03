@@ -9,7 +9,6 @@ import com.android.build.gradle.internal.LibraryTaskManager
 import com.android.build.gradle.internal.LoggerWrapper
 import com.android.build.gradle.internal.TaskManager
 import com.android.build.gradle.internal.component.ComponentCreationConfig
-import com.android.build.gradle.internal.manifest.parseManifest
 import com.android.build.gradle.internal.publishing.AndroidArtifacts
 import com.android.build.gradle.internal.res.GenerateLibraryRFileTask
 import com.android.build.gradle.internal.res.ParseLibraryResourcesTask
@@ -23,11 +22,11 @@ import com.android.build.gradle.internal.tasks.manifest.mergeManifests
 import com.android.build.gradle.tasks.BundleAar
 import com.android.build.gradle.tasks.MergeResources
 import com.android.build.gradle.tasks.ProcessLibraryManifest
-import com.android.builder.errors.DefaultIssueReporter
 import com.android.ide.common.resources.CopyToOutputDirectoryResourceCompilationService
+import com.android.ide.common.symbols.parseManifest
 import com.android.manifmerger.ManifestMerger2
 import com.android.manifmerger.ManifestProvider
-import com.android.utils.StdLogger
+import com.android.utils.appendCapitalized
 import com.github.jengelman.gradle.plugins.shadow.relocation.Relocator
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.Plugin
@@ -49,8 +48,6 @@ import java.io.File
  * - merges consumer proguard files
  */
 open class GreasePlugin : Plugin<Project> {
-
-    private val defaultIssueReporter = DefaultIssueReporter(StdLogger(StdLogger.Level.WARNING))
 
     override fun apply(target: Project) {
         target.plugins.withId("com.android.library") {
@@ -469,8 +466,8 @@ open class GreasePlugin : Plugin<Project> {
 
                 log.d { "Executing shadowing for variant ${variant.name} and ${extraManifests.files.size} roots with namespace ${variant.namespace.get()}..." }
                 extraManifests.forEach { inputFile ->
-                    val manifestData = parseManifest(inputFile, true, { true }, defaultIssueReporter)
-                    manifestData.packageName?.let { fromPackageName ->
+                    val manifestData = parseManifest(inputFile)
+                    manifestData.`package`?.let { fromPackageName ->
                         log.d { "Processing R class from $fromPackageName manifestInput=${inputFile.path} outputDir=${compileTask.get().destinationDirectory.get()}..." }
                         relocate(RClassRelocator(fromPackageName, variant.namespace.get(), log))
                     }
@@ -663,6 +660,9 @@ open class GreasePlugin : Plugin<Project> {
         }
     }
 }
+
+private fun ComponentCreationConfig.computeTaskName(prefix: String, suffix: String): String =
+    prefix.appendCapitalized(name, suffix)
 
 private fun Variant.componentCreationConfigOrThrow(): ComponentCreationConfig {
     return when (this) {
