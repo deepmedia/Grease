@@ -18,7 +18,7 @@ pluginManagement {
 // build.gradle.kts
 plugins {
     id("com.android.library")
-    id("io.deepmedia.tools.grease") version "0.3.1"
+    id("io.deepmedia.tools.grease") version "0.3.2"
 }
 ```
 
