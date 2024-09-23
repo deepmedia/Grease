@@ -118,7 +118,7 @@ open class GreasePlugin : Plugin<Project> {
 
         val componentConfig = variant.componentCreationConfigOrThrow()
 
-        target.locateTask(componentConfig.computeTaskName("process", "Manifest"))?.configure {
+        target.locateTask(componentConfig.resolveTaskName("process", "Manifest"))?.configure {
             val processManifestTask = this as ProcessLibraryManifest
 
             val extraManifests = configurations.artifactsOf(AndroidArtifacts.ArtifactType.MANIFEST)
@@ -218,7 +218,7 @@ open class GreasePlugin : Plugin<Project> {
 
         val creationConfig = variant.componentCreationConfigOrThrow()
 
-        target.locateTask(creationConfig.computeTaskName("copy", "JniLibsProjectAndLocalJars"))?.configure {
+        target.locateTask(creationConfig.resolveTaskName("copy", "JniLibsProjectAndLocalJars"))?.configure {
             val copyJniTask = this as LibraryJniLibsTask
             val extraJniLibs = configurations.artifactsOf(AndroidArtifacts.ArtifactType.JNI)
             dependsOn(extraJniLibs)
@@ -315,7 +315,7 @@ open class GreasePlugin : Plugin<Project> {
         log.d { "Configuring variant ${variant.name}..." }
         val creationConfig = variant.componentCreationConfigOrThrow()
 
-        target.locateTask(creationConfig.computeTaskName("package", "Resources"))?.configure {
+        target.locateTask(creationConfig.resolveTaskName("package", "Resources"))?.configure {
             this as MergeResources
 
             val resourcesMergingWorkdir = target.greaseBuildDir.get().dir(variant.name).dir("resources")
@@ -393,7 +393,7 @@ open class GreasePlugin : Plugin<Project> {
         val bundleLibraryTask = creationConfig.taskContainer.bundleLibraryTask
 
         val greaseExpandTask = target.tasks.locateOrRegisterTask(
-            creationConfig.computeTaskName("extract", "Aar").greasify(),
+            creationConfig.resolveTaskName("extract", "Aar").greasify(),
         ) {
             val bundleAar = bundleLibraryTask?.get() as BundleAar
 
@@ -409,7 +409,7 @@ open class GreasePlugin : Plugin<Project> {
         }
 
         val greaseProcessTask = target.tasks.locateOrRegisterTask(
-            creationConfig.computeTaskName("process", "Jar").greasify(),
+            creationConfig.resolveTaskName("process", "Jar").greasify(),
         ) {
 
             // There are many options here. PROCESSED_JAR, PROCESSED_AAR, CLASSES, CLASSES_JAR ...
@@ -440,7 +440,7 @@ open class GreasePlugin : Plugin<Project> {
         }
 
         val greaseShadowTask = target.tasks.locateOrRegisterTask(
-            creationConfig.computeTaskName("shadow", "Aar").greasify(),
+            creationConfig.resolveTaskName("shadow", "Aar").greasify(),
             ShadowJar::class.java
         ) {
             val compileTask = creationConfig.taskContainer.javacTask
@@ -645,7 +645,7 @@ open class GreasePlugin : Plugin<Project> {
         val log = logger.child("configureVariantProguardFiles")
         log.d { "Configuring variant ${variant.name}..." }
         val creationConfig = variant.componentCreationConfigOrThrow()
-        target.locateTask(creationConfig.computeTaskName("merge", "ConsumerProguardFiles"))?.configure {
+        target.locateTask(creationConfig.resolveTaskName("merge", "ConsumerProguardFiles"))?.configure {
             val mergeFileTask = this as MergeFileTask
             // UNFILTERED_PROGUARD_RULES, FILTERED_PROGUARD_RULES, AAPT_PROGUARD_RULES, ...
             // UNFILTERED_PROGUARD_RULES is output of the AarTransform. FILTERED_PROGUARD_RULES
@@ -661,7 +661,7 @@ open class GreasePlugin : Plugin<Project> {
     }
 }
 
-private fun ComponentCreationConfig.computeTaskName(prefix: String, suffix: String): String =
+private fun ComponentCreationConfig.resolveTaskName(prefix: String, suffix: String): String =
     prefix.appendCapitalized(name, suffix)
 
 private fun Variant.componentCreationConfigOrThrow(): ComponentCreationConfig {
