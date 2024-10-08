@@ -1,10 +1,26 @@
 plugins {
+    `jvm-test-suite`
     `kotlin-dsl`
     alias(libs.plugins.publisher)
 }
 
 group = "io.deepmedia.tools"
 version = "0.3.2"
+
+testing {
+    suites {
+        register<JvmTestSuite>("functionalTest") {
+            useJUnit()
+            testType.set(TestSuiteType.FUNCTIONAL_TEST)
+
+            dependencies {
+                implementation(gradleTestKit())
+                implementation(project.dependencies.kotlin("test") as String)
+                implementation(project.dependencies.kotlin("test-junit") as String)
+            }
+        }
+    }
+}
 
 gradlePlugin {
     plugins {
@@ -13,6 +29,8 @@ gradlePlugin {
             implementationClass = "io.deepmedia.tools.grease.GreasePlugin"
         }
     }
+
+    testSourceSets(sourceSets["functionalTest"])
 }
 
 dependencies {

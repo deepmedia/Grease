@@ -80,7 +80,7 @@ private fun Project.createGrease(name: String, isTransitive: Boolean): Configura
     }
     configurations.configureEach {
         val other = this
-        if (other.name == nameOf(name, "compileClasspath")) {
+        if (other.name == nameOf(name, "compileOnly")) {
             other.extendsFrom(configuration)
         }
     }
