@@ -1,3 +1,5 @@
+@file:Suppress("UnstableApiUsage")
+
 plugins {
     `jvm-test-suite`
     `kotlin-dsl`
@@ -5,7 +7,7 @@ plugins {
 }
 
 group = "io.deepmedia.tools"
-version = "0.3.2"
+version = "0.3.3"
 
 testing {
     suites {

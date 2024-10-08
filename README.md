@@ -18,11 +18,11 @@ pluginManagement {
 // build.gradle.kts
 plugins {
     id("com.android.library")
-    id("io.deepmedia.tools.grease") version "0.3.2"
+    id("io.deepmedia.tools.grease") version "0.3.3"
 }
 ```
 
-Note: it is important that Grease is applied *after* the Android library plugin.
+Note: The minimum required version of Gradle is 8.3
 
 ## Usage
 
