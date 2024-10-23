@@ -39,7 +39,7 @@ val JarFile.packageNames: Set<String>
     }.toSet()
 
 val File.packageNames: Set<String>
-    get() = listFilesRecursive("class").mapNotNull { file ->
+    get() = (listFilesRecursive("class") + listFilesRecursive("aidl")).mapNotNull { file ->
         if (file.name != "module-info.class") {
             val cleanedPath = file.path.removePrefix(this.path).removePrefix("/")
             cleanedPath

@@ -21,7 +21,8 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Grease"
+rootProject.name = "tests"
 
 include(":sample-library")
 include(":sample-dependency-pure")
+include(":sample-dependency-library")

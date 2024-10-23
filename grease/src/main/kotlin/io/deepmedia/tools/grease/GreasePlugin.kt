@@ -27,11 +27,14 @@ import com.android.ide.common.symbols.parseManifest
 import com.android.manifmerger.ManifestMerger2
 import com.android.manifmerger.ManifestProvider
 import com.android.utils.appendCapitalized
+import com.github.jengelman.gradle.plugins.shadow.ShadowStats
+import com.github.jengelman.gradle.plugins.shadow.relocation.RelocatePathContext
 import com.github.jengelman.gradle.plugins.shadow.relocation.Relocator
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.file.Directory
 import org.gradle.api.publish.maven.internal.publication.DefaultMavenPublication
 import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
 import org.gradle.kotlin.dsl.support.unzipTo
@@ -68,20 +71,25 @@ open class GreasePlugin : Plugin<Project> {
             createConfigurations(false)
             createConfigurations(true)
 
-            fun configure(variant: Variant, vararg configurations: Configuration) {
-                configureVariantManifest(target, variant, configurations, log)
-                configureVariantJniLibs(target, variant, configurations, log)
-                configureVariantResources(target, variant, configurations, log)
-                configureVariantSources(target, variant, configurations, greaseExtension, log)
-                configureVariantAssets(target, variant, configurations, log)
-                configureVariantProguardFiles(target, variant, configurations, log)
+            fun configure(variant: Variant, runtime: List<Configuration>, api: List<Configuration>) {
+                configureVariantManifest(target, variant, runtime, log)
+                configureVariantJniLibs(target, variant, runtime, log)
+                configureVariantAidlParcelables(target, variant, runtime + api, log)
+                configureVariantResources(target, variant, runtime, log)
+                configureVariantSources(target, variant, runtime, greaseExtension, log)
+                configureVariantAssets(target, variant, runtime, log)
+                configureVariantProguardFiles(target, variant, runtime, log)
             }
             // Configure all variants.
             androidComponents.onVariants { variant ->
                 val childLog = log.child("configureVariant")
                 childLog.d { "Configuring variant ${variant.name}..." }
                 target.afterEvaluate {
-                    configure(variant, target.greaseOf(variant), target.greaseOf(variant, true))
+                    configure(
+                        variant = variant,
+                        runtime = listOf(target.greaseOf(variant), target.greaseOf(variant, true)),
+                        api = listOf(target.greaseApiOf(variant), target.greaseApiOf(variant, true))
+                    )
                 }
             }
         }
@@ -110,7 +118,7 @@ open class GreasePlugin : Plugin<Project> {
     private fun configureVariantManifest(
         target: Project,
         variant: Variant,
-        configurations: Array<out Configuration>,
+        configurations: List<Configuration>,
         logger: Logger
     ) {
         val log = logger.child("configureVariantManifest")
@@ -210,7 +218,7 @@ open class GreasePlugin : Plugin<Project> {
     private fun configureVariantJniLibs(
         target: Project,
         variant: Variant,
-        configurations: Array<out Configuration>,
+        configurations: List<Configuration>,
         logger: Logger
     ) {
         val log = logger.child("configureVariantJniLibs")
@@ -244,6 +252,37 @@ open class GreasePlugin : Plugin<Project> {
                 doLast { injectJniLibs() }
             } else {
                 injectJniLibs()
+            }
+        }
+    }
+
+    private fun configureVariantAidlParcelables(
+        target: Project,
+        variant: Variant,
+        configurations: List<Configuration>,
+        logger: Logger
+    ) {
+        val log = logger.child("configureVariantAidlParcelables")
+        log.d { "Configuring variant ${variant.name}..." }
+        val creationConfig = variant.componentCreationConfigOrThrow()
+        creationConfig.taskContainer.aidlCompileTask?.configure {
+            val extraAidlFiles = configurations.artifactsOf(AndroidArtifacts.ArtifactType.AIDL)
+            dependsOn(extraAidlFiles)
+            fun injectAidlFiles() {
+                log.d { "Executing for variant ${variant.name} and ${extraAidlFiles.files.size} roots..." }
+                extraAidlFiles.files.forEach { inputRoot ->
+                    log.d { "Found aidl parcelables files root: $inputRoot" }
+                    val inputFiles = target.fileTree(inputRoot)
+                    target.copy {
+                        from(inputFiles)
+                        into(packagedDir.get())
+                    }
+                }
+            }
+            if (sourceFiles.get().files.isNotEmpty()) {
+                doLast { injectAidlFiles() }
+            } else {
+                injectAidlFiles()
             }
         }
     }
@@ -307,7 +346,7 @@ open class GreasePlugin : Plugin<Project> {
     private fun configureVariantResources(
         target: Project,
         variant: Variant,
-        configurations: Array<out Configuration>,
+        configurations: List<Configuration>,
         logger: Logger
     ) {
 
@@ -376,7 +415,7 @@ open class GreasePlugin : Plugin<Project> {
     private fun configureVariantSources(
         target: Project,
         variant: Variant,
-        configurations: Array<out Configuration>,
+        configurations: List<Configuration>,
         greaseExtension: GreaseExtension,
         logger: Logger
     ) {
@@ -386,6 +425,7 @@ open class GreasePlugin : Plugin<Project> {
         val creationConfig = variant.componentCreationConfigOrThrow()
 
         val workdir = target.greaseBuildDir.get().dir(variant.name)
+        workdir.asFile.deleteRecursively()
         val aarExtractWorkdir = workdir.dir("extract").dir("aar")
         val jarExtractWorkdir = workdir.dir("extract").dir("jar")
         val jarFileName = "classes.jar"
@@ -475,8 +515,8 @@ open class GreasePlugin : Plugin<Project> {
 
                 val relocationPrefix = greaseExtension.prefix.get()
                 if (relocationPrefix.isNotEmpty()) {
-                    greaseProcessTask.get().outputs.files
-                        .asSequence()
+                    val sequence = greaseProcessTask.get().outputs.files.asSequence() + aarExtractWorkdir.dir("aidl").asFile
+                    sequence
                         .flatMap { inputFile -> inputFile.packageNames }
                         .distinct()
                         .map { packageName -> packageName to "${relocationPrefix}.$packageName" }
@@ -502,9 +542,16 @@ open class GreasePlugin : Plugin<Project> {
                     into(aarExtractWorkdir)
                 }
 
-                replacePackagesInFile(
+                replacePackagesInManifest(
                     aarExtractWorkdir.file("AndroidManifest.xml").asFile,
                     greaseShadowDir.file("AndroidManifest.xml").asFile,
+                    relocators,
+                    target,
+                )
+
+                relocateAidlFiles(
+                    aarExtractWorkdir.dir("aidl"),
+                    greaseShadowDir.dir("aidl"),
                     relocators,
                     target,
                 )
@@ -544,7 +591,7 @@ open class GreasePlugin : Plugin<Project> {
         }
     }
 
-    private fun replacePackagesInFile(
+    private fun replacePackagesInManifest(
         input: File,
         output: File,
         relocators: List<Relocator>,
@@ -573,6 +620,48 @@ open class GreasePlugin : Plugin<Project> {
         }
     }
 
+
+    private fun relocateAidlFiles(
+        inputDir: Directory,
+        outputDir: Directory,
+        relocators: List<Relocator>,
+        target: Project,
+    ) {
+        if (inputDir.asFileTree.isEmpty) return
+
+        inputDir.asFileTree.forEach { file ->
+            val relocatePathContext = RelocatePathContext().apply {
+                stats = ShadowStats()
+            }
+            val reader = file.bufferedReader()
+            val relocatedPath = relocators
+                .filterNot { it is RClassRelocator }
+                .fold(file.toRelativeString(inputDir.asFile)) { acc, relocator ->
+                    relocator.relocatePath(relocatePathContext.apply { path = acc })
+                }
+            val writer = outputDir.asFile.file(relocatedPath).bufferedWriter()
+            reader.useLines { strings ->
+                strings
+                    .map { string ->
+                        relocators
+                            .filterNot { it is RClassRelocator }
+                            .fold(string) { acc, relocator ->
+                                relocator.applyToSourceContent(acc)
+                            }
+                    }.forEach {
+                        writer.write(it)
+                        writer.newLine()
+                    }
+            }
+            writer.close()
+        }
+        inputDir.asFile.deleteRecursively()
+        target.copy {
+            from(outputDir)
+            into(inputDir)
+        }
+    }
+
     /**
      * Interesting tasks:
      * 1. generate<>Assets: See [MutableTaskContainer].
@@ -585,7 +674,7 @@ open class GreasePlugin : Plugin<Project> {
     private fun configureVariantAssets(
         target: Project,
         variant: Variant,
-        configurations: Array<out Configuration>,
+        configurations: List<Configuration>,
         logger: Logger
     ) {
         val log = logger.child("configureVariantAssets")
@@ -639,7 +728,7 @@ open class GreasePlugin : Plugin<Project> {
     private fun configureVariantProguardFiles(
         target: Project,
         variant: Variant,
-        configurations: Array<out Configuration>,
+        configurations: List<Configuration>,
         logger: Logger
     ) {
         val log = logger.child("configureVariantProguardFiles")
