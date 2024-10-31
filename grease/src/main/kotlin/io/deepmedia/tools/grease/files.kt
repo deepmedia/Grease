@@ -43,7 +43,7 @@ val File.packageNames: Set<String>
         if (file.name != "module-info.class") {
             val cleanedPath = file.path.removePrefix(this.path).removePrefix("/")
             cleanedPath
-                .substring(0 until cleanedPath.lastIndexOf('/'))
-                .replace('/', '.')
+                .substring(0 until cleanedPath.lastIndexOf('/').coerceAtLeast(0))
+                .replace('/', '.').takeIf { it.isNotBlank() }
         } else null
     }.toSet()
