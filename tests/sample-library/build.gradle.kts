@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
     id("io.deepmedia.tools.grease")
 }
 
@@ -58,6 +59,9 @@ android {
 dependencies {
     grease("androidx.core:core:1.0.0")
 
+    grease(project(":sample-dependency-pure"))
+    grease(project(":sample-dependency-library"))
+
     // include deps to pom when publishing
     api("com.google.android.material:material:1.0.0")
     // Includes resource and some manifest changes
@@ -67,6 +71,4 @@ dependencies {
     grease("org.tensorflow:tensorflow-lite:2.3.0")
     // Manifest changes, layout resources
     grease("com.otaliastudios:cameraview:2.7.2")
-
-    grease(project(":sample-dependency-pure"))
 }

@@ -320,6 +320,7 @@ open class GreasePlugin : Plugin<Project> {
 
             val resourcesMergingWorkdir = target.greaseBuildDir.get().dir(variant.name).dir("resources")
             val mergedResourcesDir = resourcesMergingWorkdir.dir("merged")
+            val currentResourcesDir = resourcesMergingWorkdir.dir("current")
             val blameDir = resourcesMergingWorkdir.dir("blame")
             val extraAndroidRes = configurations.artifactsOf(AndroidArtifacts.ArtifactType.ANDROID_RES)
             dependsOn(extraAndroidRes)
@@ -328,6 +329,11 @@ open class GreasePlugin : Plugin<Project> {
 
             fun injectResources() {
                 target.delete(resourcesMergingWorkdir)
+                target.delete(currentResourcesDir)
+                target.copy {
+                    from(outputDir.asFileTree)
+                    into(currentResourcesDir)
+                }
 
                 val executorFacade = Workers.withGradleWorkers(
                     creationConfig.services.projectInfo.path,
@@ -340,7 +346,7 @@ open class GreasePlugin : Plugin<Project> {
                     resCompilerService = CopyToOutputDirectoryResourceCompilationService,
                     incrementalMergedResources = mergedResourcesDir.asFile,
                     mergedResources = outputDir.asFile.get(),
-                    resourceSets = extraAndroidRes.files.toList(),
+                    resourceSets = currentResourcesDir.asFileTree.files.toList() + extraAndroidRes.files,
                     minSdk = minSdk.get(),
                     aaptWorkerFacade = executorFacade,
                     blameLogOutputFolder = blameDir.asFile,

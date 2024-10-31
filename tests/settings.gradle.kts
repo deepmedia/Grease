@@ -25,3 +25,4 @@ rootProject.name = "Grease"
 
 include(":sample-library")
 include(":sample-dependency-pure")
+include(":sample-dependency-library")
