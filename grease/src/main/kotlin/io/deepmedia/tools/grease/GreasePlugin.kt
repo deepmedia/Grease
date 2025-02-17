@@ -32,11 +32,13 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.file.FileCollection
 import org.gradle.api.publish.maven.internal.publication.DefaultMavenPublication
 import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
 import org.gradle.kotlin.dsl.support.unzipTo
 import org.gradle.kotlin.dsl.support.zipTo
 import java.io.File
+import kotlin.reflect.full.functions
 
 /**
  * Adds grease configurations for bundling dependencies in AAR files.
@@ -239,7 +241,15 @@ open class GreasePlugin : Plugin<Project> {
                 }
             }
 
-            val files = projectNativeLibs.get().files().files + localJarsNativeLibs?.files.orEmpty()
+            // In agp 8.8.0 return type of `localJarsNativeLibs` property was changed
+            // So its starts to throw `NoSuchMethodError` when we applied older version of agp
+            // To prevent that we simply find this function by reflection, call it
+            // and casting result to proper type
+            fun LibraryJniLibsTask.localJarsNativeLibs() = this::class.functions
+                .find { it.name == "localJarsNativeLibs" }
+                ?.let { it.call() as? FileCollection }
+
+            val files = projectNativeLibs.get().files().files + localJarsNativeLibs()?.files.orEmpty()
             if (files.isNotEmpty()) {
                 doLast { injectJniLibs() }
             } else {
