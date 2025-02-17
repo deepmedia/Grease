@@ -1,5 +1,5 @@
 [versions]
-agp = "8.8.1"
+agp = "8.1.4"
 apache-ant = "1.10.14"
 asm-commons = "9.6"
 android-tools = "31.1.4"
