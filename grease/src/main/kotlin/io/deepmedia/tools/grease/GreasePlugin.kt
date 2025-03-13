@@ -440,7 +440,8 @@ open class GreasePlugin : Plugin<Project> {
 
             fun injectClasses(inputJar: File) {
                 log.d { "Processing inputJar=$inputJar outputDir=${jarExtractWorkdir}..." }
-                val inputFiles = target.zipTree(inputJar).matching { include("**/*.class", "**/*.kotlin_module") }
+                //keep java resources from jar
+                val inputFiles = target.zipTree(inputJar)
                 target.copy {
                     from(inputFiles)
                     into(jarExtractWorkdir)
